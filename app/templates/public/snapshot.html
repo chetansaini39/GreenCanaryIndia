@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}${{ symbol }} GEX Snapshot — {{ date_str }} | GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h2 class="mb-1">${{ symbol }} <span class="text-muted fs-5">GEX Snapshot</span></h2>
+    <p class="text-muted small mb-4">{{ date_str }}</p>
+
+    {% if snapshot %}
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row text-center g-3">
+            {% if snapshot.net_gex is not none %}
+            <div class="col-4">
+              <div class="text-muted small">Net GEX</div>
+              <div class="fw-bold fs-5 {% if snapshot.net_gex >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ '%+,.0f'|format(snapshot.net_gex) }}
+              </div>
+            </div>
+            {% endif %}
+            {% if snapshot.call_wall is not none %}
+            <div class="col-4">
+              <div class="text-muted small">Call Wall</div>
+              <div class="fw-bold fs-5 text-success">{{ '{:,.0f}'.format(snapshot.call_wall) }}</div>
+            </div>
+            {% endif %}
+            {% if snapshot.put_wall is not none %}
+            <div class="col-4">
+              <div class="text-muted small">Put Wall</div>
+              <div class="fw-bold fs-5 text-danger">{{ '{:,.0f}'.format(snapshot.put_wall) }}</div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="alert alert-warning">No snapshot data available for {{ symbol }} on {{ date_str }}.</div>
+    {% endif %}
+
+    {# Conversion prompt #}
+    {% if not session.get('user_id') %}
+    <div class="card border-primary mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Want historical data or other symbols?</h5>
+        <p class="card-text text-muted">Create a free account to access SPY, QQQ, TSLA, and NVDA. Upgrade to unlock the full symbol list and complete history.</p>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Create Free Account</a>
+          <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">Log In</a>
+        </div>
+      </div>
+    </div>
+
+    {# Soft conversion — newsletter #}
+    <div class="card bg-light mb-4" id="newsletter-card">
+      <div class="card-body">
+        <h6 class="card-title">Not ready to sign up? Get the GEX newsletter instead.</h6>
+        <p class="card-text text-muted small">We'll send you periodic GEX snapshots and market-structure insights — no account needed.</p>
+        <form id="newsletter-form" class="d-flex gap-2">
+          <input type="email" name="email" class="form-control" placeholder="you@example.com" required>
+          <input type="hidden" name="source" value="snapshot_decline">
+          <button type="submit" class="btn btn-outline-primary text-nowrap">Subscribe</button>
+        </form>
+        <div id="newsletter-msg" class="mt-2 small d-none"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.getElementById('newsletter-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const res = await fetch("{{ url_for('public.newsletter_signup') }}", { method: 'POST', body: data });
+      const msg = document.getElementById('newsletter-msg');
+      msg.classList.remove('d-none', 'text-danger', 'text-success');
+      if (res.ok) {
+        msg.textContent = "You're subscribed!";
+        msg.classList.add('text-success');
+        form.classList.add('d-none');
+      } else {
+        msg.textContent = "Something went wrong — please try again.";
+        msg.classList.add('text-danger');
+      }
+    });
+  }
+</script>
+{% endblock %}

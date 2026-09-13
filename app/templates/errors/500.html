@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}500 Server Error — GEX Intelligence{% endblock %}
+{% block content %}
+<div class="text-center mt-5">
+  <h1 class="display-1 fw-bold text-danger">500</h1>
+  <p class="lead">Something went wrong on our end. Please try again shortly.</p>
+  <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-2">Go Home</a>
+</div>
+{% endblock %}

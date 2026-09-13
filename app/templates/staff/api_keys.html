@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}API Keys — Staff{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">API Keys</h2>
+  <a href="{{ url_for('admin_panel.staff_home') }}" class="btn btn-sm btn-outline-secondary">← Staff Home</a>
+</div>
+
+<div class="alert alert-info small">
+  Read-only view. Contact an admin to revoke a key.
+</div>
+
+<form method="get" class="row g-2 mb-4">
+  <div class="col-md-8">
+    <input type="search" name="q" class="form-control" placeholder="Search owner email or label…"
+           value="{{ q }}">
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Search</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Owner</th>
+        <th>Label</th>
+        <th>Created</th>
+        <th>Last used</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in keys %}
+      <tr>
+        <td>{{ k.owner_email }} <span class="badge text-bg-secondary">{{ k.owner_role }}</span></td>
+        <td>{{ k.label }}</td>
+        <td class="small text-muted">{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '—' }}</td>
+        <td class="small text-muted">{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else 'never' }}</td>
+        <td>
+          {% if k.is_active %}
+            <span class="badge text-bg-success">Active</span>
+          {% else %}
+            <span class="badge text-bg-secondary">Revoked</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-muted text-center py-4">No API keys yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

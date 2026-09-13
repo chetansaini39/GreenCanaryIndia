@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.retailgex.webapp</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <!-- Absolute path to the gunicorn binary inside your virtualenv -->
+    <string>/Users/chetansaini/Documents/GitHub/RetailGex/.venv/bin/gunicorn</string>
+    <string>--config</string>
+    <string>/Users/chetansaini/Documents/GitHub/RetailGex/gunicorn.conf.py</string>
+    <string>wsgi:app</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex</string>
+
+  <!-- Load .env so all secrets are in the environment -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>FLASK_ENV</key>
+    <string>production</string>
+    <!-- macOS fork() safety: gunicorn forks workers after Obj-C frameworks
+         are initialized, which otherwise aborts the child process. -->
+    <key>OBJC_DISABLE_INITIALIZE_FORK_SAFETY</key>
+    <string>YES</string>
+    <!-- Remaining secrets come from the shell environment or the .env loaded
+         by python-dotenv inside the app; add per-key overrides here if needed. -->
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex/logs/webapp.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex/logs/webapp.stderr.log</string>
+
+  <!-- Throttle rapid crash-restart loops -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

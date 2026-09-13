@@ -1,0 +1,27 @@
+{# Shared marketing nav (homepage + contact). Anchor links resolve to the
+   homepage so they work from any marketing page. Requires marketing.css and a
+   trailing script that toggles #nav.open (included here, self-contained). #}
+<nav class="nav" id="nav">
+  <div class="container nav-inner">
+    <a href="{{ url_for('main.index') }}" class="brand"><span class="dot"></span>RetailGex</a>
+    <div class="nav-links">
+      <a href="{{ url_for('main.index') }}#features">Features</a>
+      <a href="{{ url_for('main.index') }}#pricing">Pricing</a>
+      <a href="{{ url_for('public.contact') }}">Contact</a>
+    </div>
+    <div class="nav-actions desktop">
+      {% if session.get('user_id') %}
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm">Go to dashboard</a>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline btn-sm">Log in</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-light btn-sm">Get started free</a>
+      {% endif %}
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">☰</button>
+  </div>
+</nav>
+<script>
+  document.getElementById('navToggle').addEventListener('click', function () {
+    document.getElementById('nav').classList.toggle('open');
+  });
+</script>

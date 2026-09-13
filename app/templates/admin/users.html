@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}User Management — Admin{% endblock %}
+
+{% block content %}
+{% set active_section = 'users' %}
+{% include 'admin/_sidenav.html' %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">User Management</h2>
+</div>
+
+<form method="get" class="row g-2 mb-4">
+  <div class="col-md-5">
+    <input type="search" name="q" class="form-control" placeholder="Search email or name…"
+           value="{{ q }}">
+  </div>
+  <div class="col-md-3">
+    <select name="role" class="form-select">
+      <option value="">All roles</option>
+      {% for r in valid_roles %}
+        <option value="{{ r }}" {% if role_filter == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Search</button>
+  </div>
+</form>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Create Staff Account</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin_panel.admin_create_staff') }}" class="row g-2">
+      <div class="col-md-3">
+        <input type="email" name="email" class="form-control" placeholder="Email (login)" required>
+      </div>
+      <div class="col-md-3">
+        <input type="text" name="name" class="form-control" placeholder="Full name" required>
+      </div>
+      <div class="col-md-3">
+        <input type="password" name="password" class="form-control" placeholder="Password (min 8)" minlength="8" required>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-success w-100">Create Staff</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Email</th>
+        <th>Name</th>
+        <th>Role</th>
+        <th>Subscription</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="{% if not u.is_active %}table-secondary{% endif %}">
+        <td>{{ u.email }}</td>
+        <td>{{ u.name }}</td>
+        <td><span class="badge text-bg-secondary">{{ u.role }}</span></td>
+        <td>{{ u.subscription_status }}</td>
+        <td>
+          {% if u.is_active %}
+            <span class="badge text-bg-success">Active</span>
+          {% else %}
+            <span class="badge text-bg-danger">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="small text-muted">
+          {% if u.created_at %}{{ u.created_at.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+        </td>
+        <td>
+          <div class="d-flex flex-wrap gap-1">
+            {% if u.id != current_user_id %}
+            <form method="post" action="{{ url_for('admin_panel.admin_change_role', user_id=u.id) }}" class="d-inline">
+              <input type="hidden" name="q" value="{{ q }}">
+              <select name="role" class="form-select form-select-sm d-inline-block w-auto"
+                      onchange="if(confirm('Change role to ' + this.value + '?')) this.form.submit(); else this.value='{{ u.role }}';">
+                {% for r in valid_roles %}
+                  <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            {% else %}
+            <span class="badge text-bg-info">You</span>
+            {% endif %}
+
+            {% if u.role in ('free', 'paid') %}
+            <form method="post" action="{{ url_for('admin_panel.admin_subscription_override', user_id=u.id) }}" class="d-inline">
+              <select name="role" class="form-select form-select-sm d-inline-block w-auto" title="Override role">
+                <option value="free" {% if u.role == 'free' %}selected{% endif %}>free</option>
+                <option value="paid" {% if u.role == 'paid' %}selected{% endif %}>paid</option>
+              </select>
+              <select name="subscription_status" class="form-select form-select-sm d-inline-block w-auto" title="Override status">
+                {% for s in ['none', 'active', 'past_due', 'canceled'] %}
+                  <option value="{{ s }}" {% if u.subscription_status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-warning" title="Apply subscription override">Override</button>
+            </form>
+            {% endif %}
+
+            {% if u.id != current_user_id %}
+              {% if u.is_active %}
+              <form method="post" action="{{ url_for('admin_panel.admin_deactivate_user', user_id=u.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('Deactivate this account?')">Deactivate</button>
+              </form>
+              {% else %}
+              <form method="post" action="{{ url_for('admin_panel.admin_reactivate_user', user_id=u.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-success">Reactivate</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-muted text-center py-4">No users found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}

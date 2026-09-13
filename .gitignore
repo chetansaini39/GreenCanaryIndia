@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.db
+instance/
+.venv/
+venv/
+dist/
+*.egg-info/
+flask_session/
+.schwab_token.json
+*.log
+scheduler.pid
+
+# Generated social-chart images (produced by the social_generation job)
+output/social_charts/*.png

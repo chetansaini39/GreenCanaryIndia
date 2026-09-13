@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Admin — GEX Intelligence{% endblock %}
+
+{% block content %}
+{% set active_section = 'home' %}
+{% include 'admin/_sidenav.html' %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Admin Panel</h2>
+  {% if registration_enabled %}
+    <span class="badge bg-success fs-6">Registration: OPEN</span>
+  {% else %}
+    <span class="badge bg-danger fs-6">Registration: CLOSED</span>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Users</h6>
+        <p class="card-text small">Manage accounts, roles, and subscriptions.</p>
+        <a href="{{ url_for('admin_panel.admin_users') }}" class="btn btn-sm btn-primary">Manage Users</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Pipeline Health</h6>
+        <p class="card-text small">Monitor GEX collection jobs and trigger reruns.</p>
+        <a href="{{ url_for('admin_panel.admin_pipeline') }}" class="btn btn-sm btn-primary">View Pipeline</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Symbols</h6>
+        <p class="card-text small">Configure tracked symbols and tiers.</p>
+        <a href="{{ url_for('admin_panel.admin_symbols') }}" class="btn btn-sm btn-primary">Manage Symbols</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Staff View</h6>
+        <p class="card-text small">Read-only user list (staff panel).</p>
+        <a href="{{ url_for('admin_panel.staff_users') }}" class="btn btn-sm btn-outline-secondary">Staff Users</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Social Post Studio</h6>
+        <p class="card-text small">Generate and publish Pre-Market, EOD, and EOW Twitter posts.</p>
+        <a href="{{ url_for('social.studio') }}" class="btn btn-sm btn-primary">Open Studio</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">API Keys</h6>
+        <p class="card-text small">Oversee and revoke MCP API keys across every account.</p>
+        <a href="{{ url_for('admin_panel.admin_api_keys') }}" class="btn btn-sm btn-primary">Manage Keys</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">Platform Settings</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin_panel.admin_toggle_registration') }}" class="d-flex align-items-center gap-3">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch" id="registration_enabled"
+               name="registration_enabled" {% if registration_enabled %}checked{% endif %}
+               onchange="this.form.submit()">
+        <label class="form-check-label" for="registration_enabled">
+          Allow new user registration (email/password and Google)
+        </label>
+      </div>
+    </form>
+    <p class="text-muted small mb-0 mt-2">
+      Disabling registration does not affect existing users' ability to log in.
+    </p>
+
+    <hr class="border-secondary my-3">
+
+    <form method="post" action="{{ url_for('admin_panel.admin_set_capture_interval') }}" class="row g-3 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-1" for="gex_0dte_interval_minutes">
+          Intraday 0DTE capture interval (min)
+        </label>
+        <select class="form-select form-select-sm" id="gex_0dte_interval_minutes"
+                name="gex_0dte_interval_minutes" style="width:100px;">
+          {% for v in [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60] %}
+          <option value="{{ v }}" {% if v == gex_0dte_interval_minutes %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-light">Save</button>
+      </div>
+      <div class="col-12">
+        <p class="text-muted small mb-0">
+          Only exact divisors of 60 are allowed so intraday snapshots stay clock-aligned
+          (e.g. :00/:15/:30/:45 for 15 min). Changes take effect on the scheduler's next run.
+        </p>
+      </div>
+    </form>
+
+    <hr class="border-secondary my-3">
+
+    <form method="post" action="{{ url_for('admin_panel.admin_set_forward_windows') }}" class="row g-3 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-1" for="gex_weekly_forward_weeks">
+          Weekly forward weeks
+        </label>
+        <input type="number" class="form-control form-control-sm" id="gex_weekly_forward_weeks"
+               name="gex_weekly_forward_weeks" min="1" max="52"
+               value="{{ gex_weekly_forward_weeks }}" style="width:90px;">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-1" for="gex_monthly_forward_cycles">
+          Monthly forward cycles
+        </label>
+        <input type="number" class="form-control form-control-sm" id="gex_monthly_forward_cycles"
+               name="gex_monthly_forward_cycles" min="1" max="12"
+               value="{{ gex_monthly_forward_cycles }}" style="width:90px;">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-light">Save</button>
+      </div>
+      <div class="col-12">
+        <p class="text-muted small mb-0">
+          Increasing these values raises API call volume to Schwab/CBOE.
+          Changes take effect on the scheduler's next run — not instantly.
+        </p>
+      </div>
+    </form>
+
+    <hr class="border-secondary my-3">
+
+    <form method="post" action="{{ url_for('admin_panel.admin_set_term_structure_range') }}" class="row g-3 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-1" for="gex_term_structure_strike_range_pct">
+          "GEX Next 3 Trading Days" strike range (±% of spot)
+        </label>
+        <input type="number" class="form-control form-control-sm" id="gex_term_structure_strike_range_pct"
+               name="gex_term_structure_strike_range_pct" min="0.1" step="0.1"
+               value="{{ gex_term_structure_strike_range_pct }}" style="width:90px;">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-light">Save</button>
+      </div>
+      <div class="col-12">
+        <p class="text-muted small mb-0">
+          Strikes shown on the term-structure card are filtered to within this
+          percentage of the current spot price (server-side). Any positive value;
+          no divisor-of-60 restriction.
+        </p>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}

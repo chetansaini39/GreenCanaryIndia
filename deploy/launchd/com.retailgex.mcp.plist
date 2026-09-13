@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.retailgex.mcp</string>
+
+  <!--
+    MCP server (Module 11) — Streamable HTTP on port 5010, mounted at /mcp.
+    Separate process from the Flask web app and the scheduler, same reason
+    the scheduler is separate: isolation. trigger_data_refresh writes a
+    request flag rather than calling Schwab directly, so — unlike the
+    scheduler — this process has no single-instance constraint.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/chetansaini/Documents/GitHub/RetailGex/.venv/bin/python</string>
+    <string>-m</string>
+    <string>mcp_server.server</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>FLASK_ENV</key>
+    <string>production</string>
+    <!-- macOS fork() safety: prevents the objc[…] +[NSString initialize]
+         fork() abort when a job forks after Obj-C frameworks initialize. -->
+    <key>OBJC_DISABLE_INITIALIZE_FORK_SAFETY</key>
+    <string>YES</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex/logs/mcp.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex/logs/mcp.stderr.log</string>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

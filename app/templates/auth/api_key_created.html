@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}API Key Created — GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+  <div class="col-sm-11 col-md-9 col-lg-8">
+    <h4 class="fw-bold mb-1">API key created</h4>
+
+    <div class="alert alert-warning">
+      Copy this key now — it will not be shown again. If you lose it, revoke
+      it from <a href="{{ url_for('auth.api_keys') }}">API Keys</a> and generate a new one.
+    </div>
+
+    <div class="input-group mb-4">
+      <input type="text" class="form-control font-monospace" id="raw-key" value="{{ raw_key }}" readonly>
+      <button class="btn btn-outline-secondary copy-btn" type="button" data-copy-target="#raw-key">Copy</button>
+    </div>
+
+    <h5 class="fw-bold mt-4">Connect an AI agent to this key</h5>
+    <p class="text-muted">
+      "{{ label }}" works with Claude or any MCP-compatible agent. Pick the
+      setup that matches your client below.
+    </p>
+
+    <div class="accordion mb-4" id="mcpSetupAccordion">
+
+      {# ── Claude Desktop — native connector ── #}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#setupDesktop">
+            Claude Desktop — Custom Connector (recommended)
+          </button>
+        </h2>
+        <div id="setupDesktop" class="accordion-collapse collapse show" data-bs-parent="#mcpSetupAccordion">
+          <div class="accordion-body">
+            <p class="small text-muted">Settings → Connectors → Add custom connector, then enter:</p>
+            <table class="table table-sm">
+              <tbody>
+                <tr><th class="text-nowrap">URL</th><td><code>{{ mcp_url }}</code></td></tr>
+                <tr><th class="text-nowrap">Header</th><td><code>Authorization: Bearer {{ raw_key }}</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {# ── Claude Code CLI ── #}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#setupCode">
+            Claude Code (CLI)
+          </button>
+        </h2>
+        <div id="setupCode" class="accordion-collapse collapse" data-bs-parent="#mcpSetupAccordion">
+          <div class="accordion-body">
+            <p class="small text-muted">Run this in your terminal:</p>
+            <div class="input-group">
+              <textarea class="form-control font-monospace small" id="snippet-code" rows="2" readonly>claude mcp add --transport http retailgex {{ mcp_url }} --header "Authorization: Bearer {{ raw_key }}"</textarea>
+              <button class="btn btn-outline-secondary copy-btn" type="button" data-copy-target="#snippet-code">Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ── mcp-remote (config-file / stdio clients) ── #}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#setupRemote">
+            Other clients — config file via mcp-remote (requires Node.js)
+          </button>
+        </h2>
+        <div id="setupRemote" class="accordion-collapse collapse" data-bs-parent="#mcpSetupAccordion">
+          <div class="accordion-body">
+            <p class="small text-muted">
+              For clients that only support a stdio server config (older
+              Claude Desktop builds, Cursor, etc.) — add to your MCP config file:
+            </p>
+            <div class="input-group">
+              <textarea class="form-control font-monospace small" id="snippet-remote" rows="12" readonly>{
+  "mcpServers": {
+    "retailgex": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "{{ mcp_url }}",
+        "--header",
+        "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "AUTH_HEADER": "Bearer {{ raw_key }}"
+      }
+    }
+  }
+}</textarea>
+              <button class="btn btn-outline-secondary copy-btn" type="button" data-copy-target="#snippet-remote">Copy</button>
+            </div>
+            <p class="small text-muted mt-2 mb-0">
+              Requires Node.js (<code>brew install node</code> on macOS) since
+              <code>mcp-remote</code> is launched via <code>npx</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <a href="{{ url_for('auth.api_keys') }}" class="btn btn-secondary">Back to API Keys</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.querySelector(btn.getAttribute('data-copy-target'));
+      target.select();
+      navigator.clipboard.writeText(target.value).then(function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+      });
+    });
+  });
+</script>
+{% endblock %}

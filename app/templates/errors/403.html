@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}403 Forbidden — GEX Intelligence{% endblock %}
+{% block content %}
+<div class="text-center mt-5">
+  <h1 class="display-1 fw-bold text-danger">403</h1>
+  <p class="lead">You don't have permission to view this page.</p>
+  <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-2">Go Home</a>
+</div>
+{% endblock %}

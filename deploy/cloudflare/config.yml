@@ -1,0 +1,30 @@
+# Cloudflare Tunnel configuration
+# ---------------------------------------------------------------------------
+# Live tunnel: myTradingapp-tunnel (credentials in ~/.cloudflared/).
+# DNS:
+#   cloudflared tunnel route dns myTradingapp-tunnel trading.csaini.org
+#   cloudflared tunnel route dns myTradingapp-tunnel retailgex.csaini.org
+# ---------------------------------------------------------------------------
+
+tunnel: myTradingapp-tunnel
+credentials-file: /Users/chetansaini/.cloudflared/ad588376-0bc5-406b-9643-f050e91e29e3.json
+
+ingress:
+  # Existing trading app
+  - hostname: trading.csaini.org
+    service: http://localhost:5001
+
+  # MCP server (Module 11) — Streamable HTTP at /mcp
+  # Path rule must come before the Flask catch-all for this hostname.
+  # Use https://retailgex.csaini.org/mcp (covered by Universal SSL).
+  # mcp.retailgex.csaini.org is a nested subdomain and needs an Advanced Certificate.
+  - hostname: retailgex.csaini.org
+    path: /mcp*
+    service: http://localhost:5010
+
+  # RetailGex Flask web app — Gunicorn on FLASK_PORT
+  - hostname: retailgex.csaini.org
+    service: http://localhost:5005
+
+  # Catch-all — cloudflared requires this final rule
+  - service: http_status:404

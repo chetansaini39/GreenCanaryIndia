@@ -1,0 +1,36 @@
+{
+  "mode": "metrics",
+  "metadata": {
+    "symbol": "SPX",
+    "trade_date": "2026-08-26",
+    "snapshot_at": "2026-08-26T14:50:00-05:00",
+    "spot_price": 5272
+  },
+  "options": [],
+  "analysis": {
+    "net_gex_b": 9.23,
+    "gamma_flip": 5280,
+    "call_wall": 5350,
+    "call_wall_gex_b": 10.33,
+    "put_wall": 5180,
+    "put_wall_gex_b": -5.5,
+    "hot_zone": 5260,
+    "hot_zone_gex_b": -5.0
+  },
+  "strike_gex": [
+    {"strike": 5180, "call_gex_b": 5.0, "put_gex_b": -5.5},
+    {"strike": 5220, "call_gex_b": 1.0, "put_gex_b": -1.0},
+    {"strike": 5260, "call_gex_b": 0.2, "put_gex_b": -5.2},
+    {"strike": 5280, "call_gex_b": 2.0, "put_gex_b": -0.3},
+    {"strike": 5310, "call_gex_b": 3.0, "put_gex_b": -0.2},
+    {"strike": 5350, "call_gex_b": 10.33, "put_gex_b": -0.1}
+  ],
+  "narrative": {
+    "regime_explanation": "Dealers can dampen moves and favor orderly range trade",
+    "hot_zone_explanation": "Watch momentum",
+    "bull_behavior": "Dealer hedging can absorb dips",
+    "bear_behavior": "Support failure widens range",
+    "wildcard_commentary": "Opening flow",
+    "verdict": "Range control remains favored while the flip holds"
+  }
+}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}API Keys — Admin{% endblock %}
+
+{% block content %}
+{% set active_section = 'api_keys' %}
+{% include 'admin/_sidenav.html' %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">API Keys</h2>
+</div>
+
+<p class="text-muted small">
+  All MCP API keys across every account. Keys inherit the linked user's tier
+  and role at request time — revoking one here takes effect immediately.
+</p>
+
+<form method="get" class="row g-2 mb-4">
+  <div class="col-md-5">
+    <input type="search" name="q" class="form-control" placeholder="Search owner email or label…"
+           value="{{ q }}">
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Search</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Owner</th>
+        <th>Label</th>
+        <th>Created</th>
+        <th>Last used</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in keys %}
+      <tr>
+        <td>{{ k.owner_email }} <span class="badge text-bg-secondary">{{ k.owner_role }}</span></td>
+        <td>{{ k.label }}</td>
+        <td class="small text-muted">{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '—' }}</td>
+        <td class="small text-muted">{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else 'never' }}</td>
+        <td>
+          {% if k.is_active %}
+            <span class="badge text-bg-success">Active</span>
+          {% else %}
+            <span class="badge text-bg-secondary">Revoked</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if k.is_active %}
+          <form method="post" action="{{ url_for('admin_panel.admin_revoke_api_key', key_id=k.id) }}"
+                onsubmit="return confirm('Revoke this key? It will stop working immediately.');">
+            <input type="hidden" name="q" value="{{ q }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-muted text-center py-4">No API keys yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}

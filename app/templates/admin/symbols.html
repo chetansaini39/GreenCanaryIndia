@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Symbol Management — Admin{% endblock %}
+
+{% block content %}
+{% set active_section = 'symbols' %}
+{% include 'admin/_sidenav.html' %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Symbol Management</h2>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Add / Update Symbol</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin_panel.admin_symbols') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="action" value="upsert">
+      <div class="col-md-2">
+        <label class="form-label small">Symbol</label>
+        <input type="text" name="symbol" class="form-control" placeholder="SPY" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Asset type</label>
+        <select name="asset_type" class="form-select">
+          <option value="index">index</option>
+          <option value="stock">stock</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Tier</label>
+        <select name="tier" class="form-select">
+          <option value="free">free</option>
+          <option value="paid">paid</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="weekly_expiry" id="weekly_expiry">
+          <label class="form-check-label small" for="weekly_expiry">Weekly expiry</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="active" id="active" checked>
+          <label class="form-check-label small" for="active">Active</label>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Save Symbol</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Symbol</th>
+        <th>Asset Type</th>
+        <th>Tier</th>
+        <th>Weekly Expiry</th>
+        <th>Active</th>
+        <th>Added</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in symbols %}
+      <tr>
+        <td class="fw-semibold">{{ s.symbol }}</td>
+        <td>{{ s.asset_type }}</td>
+        <td><span class="badge text-bg-secondary">{{ s.tier }}</span></td>
+        <td>{{ 'Yes' if s.get('weekly_expiry') else 'No' }}</td>
+        <td>
+          {% if s.get('active', True) %}
+            <span class="badge text-bg-success">Active</span>
+          {% else %}
+            <span class="badge text-bg-secondary">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="small text-muted">
+          {% if s.added_at %}{{ s.added_at.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('admin_panel.admin_symbols') }}" class="d-inline"
+                onsubmit="return confirm('Remove {{ s.symbol }}?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="symbol" value="{{ s.symbol }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-muted text-center py-4">No symbols configured.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}

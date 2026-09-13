@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}This Week's GEX — GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="fw-bold mb-0">This Week's GEX</h2>
+  {% if not session.get('user_id') %}
+    <a href="{{ url_for('auth.register') }}" class="btn btn-primary">
+      Register for full access
+    </a>
+  {% endif %}
+</div>
+
+{# Public snapshot — populated in Module 04 / 08 #}
+<div class="alert alert-info">
+  Public GEX snapshot coming in Module 04. Free symbols: SPY, QQQ, TSLA, NVDA.
+</div>
+{% endblock %}

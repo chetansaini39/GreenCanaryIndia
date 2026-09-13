@@ -1,0 +1,11 @@
+{# Shared marketing footer (homepage + contact). Expects `now_year`. #}
+<footer class="footer">
+  <div class="container footer-inner">
+    <span class="copy">&copy; {{ now_year }} RetailGex</span>
+    <div class="footer-links">
+      <a href="{{ url_for('public.contact') }}">Contact / feedback</a>
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+    </div>
+  </div>
+</footer>

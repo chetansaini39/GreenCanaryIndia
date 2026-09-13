@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}API Keys — GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+  <div class="col-sm-11 col-md-8 col-lg-7">
+    <h4 class="fw-bold mb-1">API keys</h4>
+    <p class="text-muted">
+      Use an API key to connect Claude or another MCP-compatible agent to your
+      account. Keys inherit your plan's tier and role — a free key gets the
+      same access a free session gets on the dashboard.
+    </p>
+
+    <form method="post" action="{{ url_for('auth.create_api_key') }}" class="row g-2 mb-4">
+      <div class="col-8 col-sm-9">
+        <input type="text" name="label" class="form-control" placeholder="Label (e.g. Claude agent)" maxlength="80" />
+      </div>
+      <div class="col-4 col-sm-3">
+        <button type="submit" class="btn btn-primary w-100">Generate key</button>
+      </div>
+    </form>
+
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Created</th>
+          <th>Last used</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for k in keys %}
+        <tr>
+          <td>{{ k.label }}</td>
+          <td>{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '—' }}</td>
+          <td>{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else 'never' }}</td>
+          <td>
+            {% if k.is_active %}
+              <span class="badge bg-success">Active</span>
+            {% else %}
+              <span class="badge bg-secondary">Revoked</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if k.is_active %}
+            <form method="post" action="{{ url_for('auth.revoke_api_key', id=k._id) }}"
+                  onsubmit="return confirm('Revoke this key? Anything using it will stop working immediately.');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted">No API keys yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

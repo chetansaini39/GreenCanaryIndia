@@ -1,0 +1,1 @@
+/* GEX Intelligence — global scripts */

@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block title %}Pipeline Health{% endblock %}
+
+{% block content %}
+{% set active_section = 'pipeline' %}
+{% include 'admin/_sidenav.html' %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Pipeline Health</h2>
+</div>
+
+{% if not scheduler_healthy %}
+<div class="alert alert-danger border border-danger border-2 d-flex align-items-start gap-3 mb-4" role="alert">
+  <span style="font-size:1.4rem">⚠️</span>
+  <div>
+    <strong class="d-block">Scheduler may be down</strong>
+    {{ scheduler_detail }}
+    — no heartbeat has been received within the last 5 minutes during market hours.
+    Check that the scheduler process is running (<code>launchctl list | grep gex-scheduler</code>)
+    and that <code>scheduler.pid</code> exists.
+  </div>
+</div>
+{% endif %}
+
+<div class="card mb-4 border-primary">
+  <div class="card-header fw-semibold bg-primary-subtle d-flex justify-content-between align-items-center">
+    <span>Zerodha / NIFTY Pipeline</span>
+    {% if zerodha_settings.zerodha_automation_enabled %}
+      <span class="badge text-bg-success">automation enabled</span>
+    {% else %}
+      <span class="badge text-bg-secondary">automation off</span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="row g-3 mb-3 small">
+      <div class="col-md-3">
+        <div class="text-muted">Primary database</div>
+        <code>{{ zerodha_status.primary_database }}</code>
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted">NIFTY market database</div>
+        <code>{{ zerodha_status.market_database }}</code>
+        {% if zerodha_status.market_database_ok %}
+          <span class="badge text-bg-success ms-1">ready</span>
+        {% else %}
+          <span class="badge text-bg-danger ms-1">unavailable</span>
+        {% endif %}
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted">Credentials</div>
+        <span class="badge text-bg-{{ 'success' if zerodha_status.credentials_configured else 'warning' }}">
+          {{ 'configured' if zerodha_status.credentials_configured else 'missing' }}
+        </span>
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted">WebSocket</div>
+        <span class="badge text-bg-{{ 'success' if zerodha_status.websocket.connected else 'secondary' }}">
+          {{ 'connected' if zerodha_status.websocket.connected else 'stopped' }}
+        </span>
+        <span class="text-muted ms-1">{{ zerodha_status.websocket.cached_quotes }} quotes</span>
+      </div>
+      <div class="col-12">
+        <div class="text-muted">Instrument master</div>
+        {% if zerodha_status.cache.exists %}
+          <code>{{ zerodha_status.cache.path }}</code>
+        {% else %}
+          <span>Not cached yet; the first live run will download it.</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if is_admin %}
+    <div class="d-flex gap-2 mb-3">
+      <form method="post" action="{{ url_for('admin_panel.admin_zerodha_check') }}">
+        <button class="btn btn-sm btn-outline-primary" type="submit">Check MongoDB + token</button>
+      </form>
+    </div>
+
+    <form method="post" action="{{ url_for('admin_panel.admin_zerodha_settings') }}" class="row g-3">
+      <div class="col-12 d-flex flex-wrap gap-4">
+        {% for key, label in [
+          ('zerodha_automation_enabled', 'Master automation'),
+          ('zerodha_ws_enabled', 'WebSocket'),
+          ('zerodha_intraday_enabled', 'Intraday 0DTE'),
+          ('zerodha_eod_enabled', 'EOD / weekly'),
+          ('zerodha_monthly_enabled', 'Monthly')
+        ] %}
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="{{ key }}" id="{{ key }}"
+                 {% if zerodha_settings[key] %}checked{% endif %}>
+          <label class="form-check-label" for="{{ key }}">{{ label }}</label>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Intraday start (IST)</label>
+        <input class="form-control" type="time" name="zerodha_intraday_start"
+               value="{{ zerodha_settings.zerodha_intraday_start }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Intraday end (IST)</label>
+        <input class="form-control" type="time" name="zerodha_intraday_end"
+               value="{{ zerodha_settings.zerodha_intraday_end }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Interval (minutes)</label>
+        <select class="form-select" name="zerodha_intraday_interval_minutes">
+          {% for value in [1,2,3,4,5,6,10,12,15,20,30,60] %}
+          <option value="{{ value }}" {% if value == zerodha_settings.zerodha_intraday_interval_minutes %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">EOD times (IST, comma separated)</label>
+        <input class="form-control" name="zerodha_eod_times"
+               value="{{ zerodha_settings.zerodha_eod_times | join(', ') }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Monthly capture time (IST)</label>
+        <input class="form-control" type="time" name="zerodha_monthly_time"
+               value="{{ zerodha_settings.zerodha_monthly_time }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small d-block">Monthly capture weekdays</label>
+        {% for value, label in [('mon','Mon'),('tue','Tue'),('wed','Wed'),('thu','Thu'),('fri','Fri')] %}
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" name="zerodha_monthly_weekdays"
+                 id="zerodha_day_{{ value }}" value="{{ value }}"
+                 {% if value in zerodha_settings.zerodha_monthly_weekdays %}checked{% endif %}>
+          <label class="form-check-label" for="zerodha_day_{{ value }}">{{ label }}</label>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Weekly expiries</label>
+        <input class="form-control" type="number" min="1" max="24"
+               name="zerodha_weekly_forward_expiries"
+               value="{{ zerodha_settings.zerodha_weekly_forward_expiries }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Monthly cycles</label>
+        <input class="form-control" type="number" min="1" max="12"
+               name="zerodha_monthly_forward_cycles"
+               value="{{ zerodha_settings.zerodha_monthly_forward_cycles }}" required>
+      </div>
+      <div class="col-md-2 align-self-end">
+        <button class="btn btn-primary w-100" type="submit">Save Zerodha settings</button>
+      </div>
+      <div class="col-12">
+        <p class="text-muted small mb-0">
+          Automatic collection remains inactive unless both the master switch and the corresponding job switch are enabled.
+          Manual NIFTY reruns work independently of these switches.
+        </p>
+      </div>
+    </form>
+
+    <hr class="my-4">
+    <form method="post" action="{{ url_for('admin_panel.admin_zerodha_margins') }}">
+      <label class="form-label fw-semibold">Hypothetical NFO margin diagnostic</label>
+      <textarea class="form-control font-monospace" name="orders_json" rows="5" required>[
+  {"exchange":"NFO","tradingsymbol":"NIFTY26SEP25000CE","transaction_type":"SELL","quantity":65,"product":"NRML","order_type":"MARKET"}
+]</textarea>
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <span class="text-muted small">Estimation only. No place, modify, or cancel order interface exists.</span>
+        <button class="btn btn-sm btn-outline-warning" type="submit">Estimate margin</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-4 border-info">
+  <div class="card-header fw-semibold bg-info-subtle d-flex align-items-center justify-content-between">
+    <span>Job Types Reference</span>
+    <button class="btn btn-sm btn-outline-secondary" type="button"
+            data-bs-toggle="collapse" data-bs-target="#job-types-body"
+            aria-expanded="true" aria-controls="job-types-body">
+      Show / hide
+    </button>
+  </div>
+  <div class="collapse show" id="job-types-body">
+    <div class="card-body pb-2">
+      <p class="small text-muted mb-3">
+        GEX collection jobs fetch option chains, compute gamma exposure, and store snapshots in MongoDB.
+        Existing jobs use US/Central (CT); Zerodha jobs use India Standard Time (IST).
+        Manual reruns always pull <strong>live</strong> option data — the date field sets which trade date
+        is stored, not which historical chain is fetched. NIFTY manual runs accept today's IST date only.
+      </p>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-3 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:14rem">Job</th>
+              <th style="width:13rem">Scheduled</th>
+              <th>What it writes</th>
+              <th style="width:12rem">Symbols</th>
+            </tr>
+          </thead>
+          <tbody class="small">
+            {% for j in jobs %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ j.label }}</div>
+                <code class="text-muted">{{ j.id }}</code>
+              </td>
+              <td>{{ j.schedule }}</td>
+              <td>{{ j.writes | safe }}</td>
+              <td>{{ j.symbols }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if is_admin %}
+      <div class="alert alert-light border small mb-0">
+        <strong>Manual rerun tips</strong>
+        <ul class="mb-0 mt-1">
+          <li><strong>Date only</strong> — backfill all applicable symbols for that trading day (best for missed EOD/hourly runs).</li>
+          <li><strong>Symbol + date</strong> — reprocess one ticker for a specific day.</li>
+          <li><strong>Neither</strong> — run the job for today; scheduler time/trading-day guards still apply.</li>
+          <li><code>monthly_opex_3rd_friday</code> requires the date to be the <strong>3rd Friday</strong> of the month.</li>
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if is_admin %}
+<div class="card mb-4 border-warning">
+  <div class="card-header fw-semibold bg-warning-subtle d-flex align-items-center gap-2">
+    <span>Backfill Forward-Tracking Window</span>
+    <span class="badge text-bg-warning ms-1">on-demand</span>
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Populates <strong>all N tracked weekly expiries</strong> and <strong>all M tracked monthly OPEX cycles</strong>
+      for one symbol or all symbols using today's live chain data.
+      Idempotent — safe to run even if data already exists. Use this for initial rollout,
+      after adding a new symbol, or after increasing the forward-window settings above.
+    </p>
+    <form method="post"
+          action="{{ url_for('admin_panel.admin_backfill_forward_window') }}"
+          class="row g-2 align-items-end"
+          onsubmit="return confirm('Trigger full forward-window backfill? This will fetch live chain data for the selected symbol(s) and may take a moment.')">
+      <div class="col-md-3">
+        <label class="form-label small">Symbol (leave blank for all symbols)</label>
+        <input type="text" name="symbol" class="form-control" placeholder="e.g. SPY — blank = all">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-warning w-100">Run Backfill</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Manual Job Rerun</div>
+  <div class="card-body">
+    <form method="post" id="rerun-form" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">Job</label>
+        <select name="job_select" id="job_select" class="form-select" required>
+          {% for j in jobs %}
+            <option value="{{ j.id }}" {% if loop.first %}selected{% endif %}>{{ j.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Symbol (optional)</label>
+        <input type="text" name="symbol" class="form-control" placeholder="SPY">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Date (optional)</label>
+        <input type="date" name="date" class="form-control">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-warning w-100"
+                onclick="return confirm('Trigger this job rerun?')">Rerun Job</button>
+      </div>
+    </form>
+    <p class="text-muted small mb-0 mt-2">
+      Pick a date only to backfill <strong>all active symbols</strong> for that day.
+      Add a symbol to limit the rerun to one ticker. Leave both blank to run the
+      full job for today (scheduler time/trading-day guards still apply).
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Job</th>
+        <th>Run At</th>
+        <th>Status</th>
+        <th>Symbols Processed</th>
+        <th>Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>
+          <div class="fw-semibold">{{ job_label(log.job_name) }}</div>
+          <code class="small text-muted">{{ log.job_name }}</code>
+        </td>
+        <td class="small">
+          {% if log.run_at %}{{ log.run_at.strftime('%Y-%m-%d %H:%M:%S CT') }}{% else %}—{% endif %}
+        </td>
+        <td>
+          {% if log.status == 'success' %}
+            <span class="badge text-bg-success">success</span>
+          {% elif log.status == 'failed' %}
+            <span class="badge text-bg-danger">failed</span>
+          {% else %}
+            <span class="badge text-bg-secondary">{{ log.status }}</span>
+          {% endif %}
+        </td>
+        <td>{{ log.get('symbols_processed', 0) }}</td>
+        <td class="small text-muted">{{ log.get('detail', '') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-muted text-center py-4">No pipeline runs logged yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}
+
+{% block scripts %}
+{% if is_admin %}
+<script>
+document.getElementById('rerun-form').addEventListener('submit', function (e) {
+  var job = document.getElementById('job_select').value;
+  this.action = '{{ url_for("admin_panel.admin_pipeline_rerun", job="__JOB__") }}'.replace('__JOB__', job);
+});
+</script>
+{% endif %}
+{% endblock %}

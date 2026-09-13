@@ -1,0 +1,78 @@
+{# Admin sidebar navigation. Include at the top of the page content block.
+   Set `active_section` in the calling template to highlight the current item.
+   Wrap the page body in the two-column layout produced here.
+#}
+{% set _active = active_section | default('') %}
+
+<div class="d-flex gap-4 align-items-start">
+
+  {# ── Sidebar ── #}
+  <nav class="flex-shrink-0" style="width:14rem">
+    <div class="card">
+      <div class="card-header fw-semibold small text-uppercase text-muted letter-spacing-1 py-2">
+        Admin Panel
+      </div>
+      <ul class="nav flex-column py-1">
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_home') }}"
+             class="nav-link px-3 py-2 {% if _active == 'home' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            ⚙️ Overview
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_users') }}"
+             class="nav-link px-3 py-2 {% if _active == 'users' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            👤 Users
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_symbols') }}"
+             class="nav-link px-3 py-2 {% if _active == 'symbols' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            📈 Symbols
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_pipeline') }}"
+             class="nav-link px-3 py-2 {% if _active == 'pipeline' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            🔄 Pipeline Health
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('social.studio') }}"
+             class="nav-link px-3 py-2 {% if _active == 'social' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            🐦 Social Studio
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_twitter_integration') }}"
+             class="nav-link px-3 py-2 {% if _active == 'twitter_test' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            🔧 Twitter API Test
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_contact') }}"
+             class="nav-link px-3 py-2 d-flex align-items-center justify-content-between {% if _active == 'contact' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            <span>✉️ Contact</span>
+            {% if contact_unread_count %}
+              <span class="badge bg-danger rounded-pill">{{ contact_unread_count }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.newsletter') }}"
+             class="nav-link px-3 py-2 {% if _active == 'newsletter' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            📧 Newsletter
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{{ url_for('admin_panel.admin_api_keys') }}"
+             class="nav-link px-3 py-2 {% if _active == 'api_keys' %}fw-semibold text-primary{% else %}text-body{% endif %}">
+            🔑 API Keys
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  {# ── Main content area — caller wraps their content here ── #}
+  <div class="flex-grow-1 min-width-0">

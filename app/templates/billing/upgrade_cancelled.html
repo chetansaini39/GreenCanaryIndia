@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Checkout Cancelled — GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+  <h2 class="fw-bold mb-3">Checkout cancelled</h2>
+  <p class="text-muted mb-4">
+    No charge was made. You can upgrade whenever you're ready.
+  </p>
+  <a href="{{ url_for('billing.upgrade') }}" class="btn btn-warning me-2">Try again</a>
+  <a href="{{ url_for('main.home') }}" class="btn btn-outline-secondary">Back to Home</a>
+</div>
+{% endblock %}

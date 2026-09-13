@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Edit Template: {{ label }} — Social Studio{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Edit: {{ label }}</h2>
+  <a href="{{ url_for('social.templates') }}" class="btn btn-sm btn-outline-secondary">← Templates</a>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="template_text">Template text</label>
+        <textarea class="form-control font-monospace small" id="template_text" name="template_text"
+                  rows="20" required>{{ template.template_text if template else '' }}</textarea>
+        <div class="form-text text-muted">
+          {% if post_type != 'premarket' %}
+          Separate tweets with <code>\n---\n</code> (a line containing only <code>---</code>).
+          EOD expects 5 tweets; EOW expects 6.
+          {% else %}
+          Pre-Market expects exactly 1 post.
+          {% endif %}
+          Required tokens, structure, unresolved placeholders, and X-safe lengths are enforced.
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save Template</button>
+        <a href="{{ url_for('social.templates') }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card bg-light">
+      <div class="card-header fw-semibold small">Available Tokens</div>
+      <div class="card-body">
+        <ul class="list-unstyled small font-monospace mb-0">
+          {% if post_type == 'eod' %}
+          <li><code>[DATE]</code></li>
+          <li><code>[DEALER_POSITION]</code></li>
+          <li><code>[REGIME]</code></li>
+          <li><code>[NET_GEX_B]</code></li>
+          <li><code>[REGIME_EXPLANATION]</code></li>
+          <li><code>[GAMMA_FLIP]</code></li>
+          <li><code>[CALL_WALL]</code> / <code>[CALL_WALL_GEX_B]</code></li>
+          <li><code>[PUT_WALL]</code> / <code>[PUT_WALL_GEX_B]</code></li>
+          <li><code>[HOT_ZONE]</code> / <code>[HOT_ZONE_GEX_B]</code></li>
+          <li><code>[HOT_ZONE_EXPLANATION]</code></li>
+          <li><code>[BULL_TRIGGER]</code> / <code>[BULL_BEHAVIOR]</code></li>
+          <li><code>[UPSIDE_TARGET]</code></li>
+          <li><code>[BEAR_TRIGGER]</code> / <code>[BEAR_BEHAVIOR]</code></li>
+          <li><code>[DOWNSIDE_TARGET]</code></li>
+          <li><code>[WILDCARD_LEVEL]</code> / <code>[WILDCARD_COMMENTARY]</code></li>
+          <li><code>[VERDICT]</code></li>
+          {% elif post_type == 'premarket' %}
+          <li><code>[DATE]</code> — e.g. Jun 19, 2026</li>
+          <li><code>[SPOT]</code> — SPX spot price</li>
+          <li><code>[NET_GEX]</code> — net GEX in $B</li>
+          <li><code>[CALL_WALL]</code> — call wall strike</li>
+          <li><code>[PUT_WALL]</code> — put wall strike</li>
+          <li><code>[HOT_ZONE]</code> — max-negative-GEX strike</li>
+          <li><code>[GAMMA_FLIP]</code> — gamma flip level</li>
+          <li><code>[REGIME]</code> — POSITIVE or NEGATIVE</li>
+          <li><code>[SITE_URL]</code> — base site URL</li>
+          {% else %}
+          <li><code>[WEEK_OF]</code> — Monday of the week</li>
+          <li><code>[SPOT]</code> — SPX spot price</li>
+          <li><code>[NET_GEX]</code> — net GEX in $B</li>
+          <li><code>[CALL_WALL]</code> — call wall strike</li>
+          <li><code>[PUT_WALL]</code> — put wall strike</li>
+          <li><code>[HOT_ZONE]</code> — max-negative-GEX strike</li>
+          <li><code>[GAMMA_FLIP]</code> — gamma flip level</li>
+          <li><code>[REGIME]</code> — POSITIVE or NEGATIVE</li>
+          <li><code>[REGIME_LONG_TEXT]</code> — dealer-positioning explanation</li>
+          <li><code>[SITE_URL]</code> — base site URL</li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

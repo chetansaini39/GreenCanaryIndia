@@ -1,0 +1,416 @@
+/* ── Dashboard — dark financial theme ─────────────────────────────────── */
+
+body {
+  background-color: #0f1117;
+  color: #e2e8f0;
+  --bs-secondary-color: #94a3b8;
+}
+
+/* Full-width dashboard layout */
+.dashboard-stack {
+  width: 100%;
+  max-width: 100%;
+}
+
+.dashboard-section {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+}
+
+.dashboard-section .card {
+  width: 100%;
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: min(52vh, 520px);
+  min-height: 320px;
+}
+
+.chart-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 20, 31, 0.55);
+  border-radius: 4px;
+  z-index: 5;
+}
+
+.gex-summary-row .card {
+  height: 100%;
+}
+
+.summary-metric {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+}
+
+.summary-metric:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.summary-intro {
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.summary-hint {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.trend-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 140px;
+}
+
+.summary-metrics .badge {
+  font-size: 1rem;
+  padding: 0.4em 0.75em;
+}
+
+/* Override Bootstrap's default card / input colours so they read on dark bg */
+.card {
+  background-color: #1a1d27 !important;
+  color: #e2e8f0;
+  --bs-secondary-color: #94a3b8;
+}
+
+.bg-dark {
+  --bs-secondary-color: #94a3b8;
+}
+
+.card-header {
+  background-color: #1e2130 !important;
+  color: #cbd5e1;
+}
+
+.form-control,
+.form-select {
+  background-color: #1e2130;
+  border-color: #374151;
+  color: #e2e8f0;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: #1e2130;
+  border-color: #6366f1;
+  color: #e2e8f0;
+  box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+}
+
+/* ── Symbol strip ─────────────────────────────────────────────────────── */
+.symbol-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.symbol-tier-section {
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background-color: #161922;
+}
+
+.symbol-tier-free {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.symbol-tier-paid {
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.symbol-tier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.symbol-tier-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.symbol-tier-free .symbol-tier-label {
+  color: #86efac;
+}
+
+.symbol-tier-paid .symbol-tier-label {
+  color: #fcd34d;
+}
+
+.symbol-tier-upgrade {
+  color: #fbbf24;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.symbol-tier-upgrade:hover {
+  color: #fde68a;
+  text-decoration: underline;
+}
+
+.symbol-btn {
+  background-color: #1e2130;
+  border: 1px solid #374151;
+  color: #cbd5e1;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+
+.symbol-btn:hover:not(.locked) {
+  background-color: #2d3148;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.symbol-btn.active {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.symbol-btn.locked {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+/* ── Granularity strip ────────────────────────────────────────────────── */
+#granularity-strip .btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+}
+
+#granularity-strip .btn-outline-secondary {
+  border-color: #374151;
+  color: #94a3b8;
+}
+
+#granularity-strip .btn-outline-secondary:hover {
+  background-color: #2d3148;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+#granularity-strip .btn-outline-secondary.active {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+/* ── Date controls ────────────────────────────────────────────────────── */
+#date-controls .btn-outline-secondary {
+  font-size: 0.8rem;
+  border-color: #374151;
+  color: #94a3b8;
+}
+
+#date-controls .btn-outline-secondary.active {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+#date-controls input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+/* 4-tab weekly expiry toggle, rendered inside the GEX by Strike card */
+.weekly-tab-toggle {
+  margin-bottom: 10px;
+}
+
+.weekly-tab-toggle .btn {
+  font-size: 0.75rem;
+  padding: 3px 12px;
+}
+
+.weekly-tab-toggle .btn-outline-secondary {
+  border-color: #374151;
+  color: #94a3b8;
+}
+
+.weekly-tab-toggle .btn-outline-secondary:hover {
+  background-color: #2d3148;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.weekly-tab-toggle .btn-outline-secondary.active {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+/* ── Intraday snapshot time-box picker ────────────────────────────────── */
+#intraday-snapshot-picker {
+  margin-bottom: 10px;
+}
+
+.snapshot-time-btn {
+  position: relative;
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  background-color: #2a2f45;
+  border: 1px solid #5b6479;
+  color: #e2e8f0;
+  border-radius: 4px;
+}
+
+.snapshot-time-btn:hover {
+  background-color: #3a4060;
+  border-color: #818cf8;
+  color: #fff;
+}
+
+.snapshot-time-btn.active {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+.snapshot-new-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: snapshot-new-pulse 1.6s infinite;
+}
+
+@keyframes snapshot-new-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+  70%  { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* ── Summary panel values ─────────────────────────────────────────────── */
+#s-net-gex {
+  color: #a5b4fc;
+}
+
+/* ── Trend blur overlay ───────────────────────────────────────────────── */
+.trend-blur-wrapper {
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+/* ── Alert overrides ──────────────────────────────────────────────────── */
+.alert-secondary {
+  background-color: #1e2130;
+  border-color: #374151;
+  color: #94a3b8;
+}
+
+/* ── OHLCV card ─────────────────────────────────────────────────────────── */
+#ohlcv-card .ohlcv-card-tabs {
+  border-bottom-color: #374151;
+}
+
+#ohlcv-card .ohlcv-card-tabs .nav-link {
+  color: #94a3b8;
+  border-color: #374151;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+#ohlcv-card .ohlcv-card-tabs .nav-link:hover {
+  color: #e2e8f0;
+  border-color: #374151;
+}
+
+#ohlcv-card .ohlcv-card-tabs .nav-link.active {
+  background-color: #1e2130;
+  border-color: #374151 #374151 #1a1d27;
+  color: #e2e8f0;
+}
+
+#ohlcv-card .ohlcv-card-tab-content {
+  position: relative;
+}
+
+#ohlcv-card .ohlcv-tab-pane {
+  display: none;
+}
+
+#ohlcv-card .ohlcv-tab-pane.active {
+  display: block;
+}
+
+.ohlcv-plot {
+  width: 100%;
+  min-height: 480px;
+  height: min(58vh, 560px);
+  background-color: #161922;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  padding: 0.25rem;
+}
+
+.ohlcv-plot .js-plotly-plot,
+.ohlcv-plot .plotly,
+.ohlcv-plot .plot-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.ohlcv-table-wrap {
+  min-height: 320px;
+  max-height: min(58vh, 560px);
+  overflow-y: auto;
+  background-color: #161922;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+}
+
+.ohlcv-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #1e2130;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  border-bottom-color: #374151;
+}
+
+.ohlcv-table tbody td {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ohlcv-table tbody tr:first-child td {
+  font-weight: 600;
+}
+
+/* ── Scrollbar thinning for symbol strip ──────────────────────────────── */
+#symbol-strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+#symbol-strip::-webkit-scrollbar-thumb {
+  background-color: #374151;
+  border-radius: 2px;
+}

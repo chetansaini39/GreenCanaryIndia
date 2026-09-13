@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Contact Submissions | Admin{% endblock %}
+
+{% block content %}
+{% set active_section = 'contact' %}
+{% include 'admin/_sidenav.html' %}
+
+{% set type_labels = {'bug': 'Bug report', 'feature': 'Feature idea', 'data': 'Data question', 'general': 'General'} %}
+{% set status_badges = {'new': 'bg-danger', 'read': 'bg-secondary', 'resolved': 'bg-success'} %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Contact Submissions <span class="badge bg-secondary">{{ submissions|length }}</span></h3>
+</div>
+
+{# ── Filters ── #}
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-auto">
+    <label class="form-label small mb-1">Type</label>
+    <select name="type" class="form-select form-select-sm">
+      <option value="">All types</option>
+      {% for t in valid_types %}
+      <option value="{{ t }}" {% if type_filter == t %}selected{% endif %}>{{ type_labels[t] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-1">Status</label>
+    <select name="status" class="form-select form-select-sm">
+      <option value="">All statuses</option>
+      {% for s in valid_statuses %}
+      <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s|capitalize }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+    <a href="{{ url_for('admin_panel.admin_contact') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+  </div>
+</form>
+
+{% if submissions %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead>
+      <tr>
+        <th>Submitted</th>
+        <th>Type</th>
+        <th>From</th>
+        <th>Message</th>
+        <th>Status</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in submissions %}
+      <tr>
+        <td class="text-muted small text-nowrap">{{ s.submitted_at.strftime('%Y-%m-%d %H:%M') if s.submitted_at else '—' }}</td>
+        <td><span class="badge bg-light text-dark">{{ type_labels.get(s.type, s.type) }}</span></td>
+        <td>
+          <div>{{ s.name }}</div>
+          <div class="small text-muted">{{ s.email }}</div>
+          {% if s.user_id %}
+          <a class="small" href="{{ url_for('admin_panel.admin_users', q=s.email) }}">view account</a>
+          {% endif %}
+        </td>
+        <td style="max-width: 28rem; white-space: pre-wrap;">{{ s.message }}</td>
+        <td><span class="badge {{ status_badges.get(s.status, 'bg-secondary') }}">{{ s.status }}</span></td>
+        <td class="text-end text-nowrap">
+          {% if s.status != 'read' %}
+          <form method="post" action="{{ url_for('admin_panel.admin_contact_set_status', submission_id=s._id) }}" class="d-inline">
+            <input type="hidden" name="status" value="read" />
+            <input type="hidden" name="type" value="{{ type_filter }}" />
+            <input type="hidden" name="status_filter" value="{{ status_filter }}" />
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Mark read</button>
+          </form>
+          {% endif %}
+          {% if s.status != 'resolved' %}
+          <form method="post" action="{{ url_for('admin_panel.admin_contact_set_status', submission_id=s._id) }}" class="d-inline">
+            <input type="hidden" name="status" value="resolved" />
+            <input type="hidden" name="type" value="{{ type_filter }}" />
+            <input type="hidden" name="status_filter" value="{{ status_filter }}" />
+            <button type="submit" class="btn btn-sm btn-outline-success">Resolve</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-muted">No submissions{% if type_filter or status_filter %} match the current filter{% endif %}.</p>
+{% endif %}
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}

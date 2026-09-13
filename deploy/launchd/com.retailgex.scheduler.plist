@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.retailgex.scheduler</string>
+
+  <!--
+    Single-process, single-instance only.
+    The Schwab OAuth token file is NOT safe for concurrent access;
+    running more than one scheduler instance risks token corruption.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/chetansaini/Documents/GitHub/RetailGex/.venv/bin/python</string>
+    <string>-m</string>
+    <string>scheduler.runner</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>FLASK_ENV</key>
+    <string>production</string>
+    <!-- macOS fork() safety: prevents the objc[…] +[NSString initialize]
+         fork() abort when a job forks after Obj-C frameworks initialize. -->
+    <key>OBJC_DISABLE_INITIALIZE_FORK_SAFETY</key>
+    <string>YES</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex/logs/scheduler.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/chetansaini/Documents/GitHub/RetailGex/logs/scheduler.stderr.log</string>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

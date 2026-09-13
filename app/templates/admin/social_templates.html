@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Post Templates — Social Studio{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Post Templates</h2>
+  <a href="{{ url_for('social.studio') }}" class="btn btn-sm btn-outline-secondary">← Studio</a>
+</div>
+
+<p class="text-muted small mb-4">
+  Templates use <code>[BRACKET]</code> placeholders filled at generation time.
+  Pre-Market expects 1 post, EOD expects 5, and EOW expects 6.
+  Separate thread posts with <code>\n---\n</code> on its own line.
+  Required tokens, structure, unresolved placeholders, and X-safe lengths are validated.
+</p>
+
+<div class="row g-3">
+  {% for tmpl in templates %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">{{ post_type_labels.get(tmpl.post_type, tmpl.post_type) }}</span>
+        <div class="d-flex gap-2 align-items-center">
+          {% if tmpl.updated_at %}
+          <span class="text-muted small">Last edited {{ tmpl.updated_at.strftime('%b %d, %Y %H:%M') }}</span>
+          {% endif %}
+          <a href="{{ url_for('social.template_edit', post_type=tmpl.post_type) }}"
+             class="btn btn-sm btn-outline-primary">Edit</a>
+        </div>
+      </div>
+      <div class="card-body">
+        <pre class="small text-muted mb-0" style="white-space:pre-wrap;max-height:200px;overflow-y:auto">{{ tmpl.template_text }}</pre>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

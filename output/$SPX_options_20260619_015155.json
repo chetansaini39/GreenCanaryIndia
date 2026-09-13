@@ -1,0 +1,20 @@
+{
+    "symbol": "$SPX",
+    "status": "SUCCESS",
+    "underlying": null,
+    "strategy": "ANALYTICAL",
+    "interval": 0.0,
+    "isDelayed": false,
+    "isIndex": true,
+    "interestRate": 0.0,
+    "underlyingPrice": 0.0,
+    "volatility": 0.0,
+    "daysToExpiration": 0.0,
+    "dividendYield": 0.0,
+    "numberOfContracts": 0,
+    "assetMainType": "INDEX",
+    "assetSubType": "",
+    "isChainTruncated": false,
+    "callExpDateMap": {},
+    "putExpDateMap": {}
+}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Today's GEX — {{ today_str }} | GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+    <h2 class="mb-1">Today's GEX Snapshots</h2>
+    <p class="text-muted small mb-4">{{ today_str }} &mdash; Free symbols: SPY, QQQ, TSLA, NVDA</p>
+
+    <div class="row g-3 mb-4">
+      {% for sym in symbols %}
+      {% set snap = snapshots[sym] %}
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+          <div class="card-header fw-bold">${{ sym }}</div>
+          <div class="card-body text-center">
+            {% if snap %}
+              {% if snap.net_gex is not none %}
+              <div class="text-muted small">Net GEX</div>
+              <div class="fw-bold fs-5 mb-2 {% if snap.net_gex >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ '%+,.0f'|format(snap.net_gex) }}
+              </div>
+              {% endif %}
+              {% if snap.call_wall is not none %}
+              <div class="text-muted small">Call Wall</div>
+              <div class="fw-semibold text-success mb-1">{{ '{:,.0f}'.format(snap.call_wall) }}</div>
+              {% endif %}
+              {% if snap.put_wall is not none %}
+              <div class="text-muted small">Put Wall</div>
+              <div class="fw-semibold text-danger">{{ '{:,.0f}'.format(snap.put_wall) }}</div>
+              {% endif %}
+              {% if not snap.net_gex and not snap.call_wall and not snap.put_wall %}
+              <span class="text-muted small">Data pending</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted small">No data yet</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if not session.get('user_id') %}
+    <div class="card border-primary">
+      <div class="card-body">
+        <h5 class="card-title">Unlock historical data and more symbols</h5>
+        <p class="card-text text-muted">Free accounts get SPY, QQQ, TSLA, and NVDA. Paid accounts unlock the full Mag7 + SPX universe with complete history.</p>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Create Free Account</a>
+          <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">Log In</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

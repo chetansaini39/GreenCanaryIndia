@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% block title %}Social Post Studio — GEX Intelligence{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Social Post Studio</h2>
+  <a href="{{ url_for('social.templates') }}" class="btn btn-sm btn-outline-secondary">Edit Templates</a>
+</div>
+
+{# ── Global EOD content-image theme ── #}
+<div class="card mb-4 border-secondary">
+  <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+    <div>
+      <span class="fw-semibold">EOD Image Theme</span>
+      <span class="badge bg-dark ms-1 fw-normal">Content only</span>
+    </div>
+    <span class="small text-muted">New drafts only · layout and typography stay fixed</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Control the brand and approved palette used by newly generated EOD images. X adds its own
+      account header and post interface; the PNGs contain only the analysis and this subtle footer.
+    </p>
+    <form method="post" action="{{ url_for('social.save_theme') }}" enctype="multipart/form-data">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="theme-brand-name">Brand display name</label>
+          <input id="theme-brand-name" name="brand_name" class="form-control form-control-sm"
+                 value="{{ eod_theme.brand_name }}" maxlength="32" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="theme-brand-handle">Handle</label>
+          <input id="theme-brand-handle" name="brand_handle" class="form-control form-control-sm"
+                 value="{{ eod_theme.brand_handle }}" maxlength="16" pattern="@[A-Za-z0-9_]{1,15}" required>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold" for="theme-logo">Optional square PNG logo</label>
+          <div class="d-flex align-items-center gap-2">
+            {% if eod_theme.logo_path %}
+            <img src="{{ url_for('social.theme_logo') }}" alt="Current EOD brand logo"
+                 class="rounded border" style="width:38px;height:38px;object-fit:contain;">
+            {% else %}
+            <div class="rounded d-flex align-items-center justify-content-center text-white fw-bold"
+                 style="width:38px;height:38px;background:{{ eod_theme.accent_color }};font-size:11px;">GX</div>
+            {% endif %}
+            <input id="theme-logo" type="file" name="theme_logo"
+                   class="form-control form-control-sm" accept="image/png,.png">
+          </div>
+          <div class="form-text">64–1024 px square, PNG only, maximum 1 MB.</div>
+          {% if eod_theme.logo_path %}
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" name="clear_logo" id="clear-theme-logo">
+            <label class="form-check-label small" for="clear-theme-logo">Remove logo and use GX</label>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% set theme_colors = [
+        ('background_color', 'Background'),
+        ('surface_color', 'Surface'),
+        ('text_color', 'Text'),
+        ('muted_color', 'Muted text'),
+        ('positive_color', 'Positive'),
+        ('negative_color', 'Negative'),
+        ('amber_color', 'Wildcard'),
+        ('accent_color', 'Blue accent'),
+        ('spot_color', 'Spot marker')
+      ] %}
+      <div class="row g-2 mt-2">
+        {% for field, label in theme_colors %}
+        <div class="col-6 col-md-4 col-xl">
+          <label class="form-label small fw-semibold mb-1" for="theme-{{ field }}">{{ label }}</label>
+          <div class="input-group input-group-sm">
+            <input id="theme-{{ field }}" type="color" name="{{ field }}"
+                   class="form-control form-control-color" value="{{ eod_theme[field] }}"
+                   title="{{ label }} color" required>
+            <span class="input-group-text font-monospace px-2">{{ eod_theme[field] }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex align-items-center gap-2 mt-3">
+        <button type="submit" class="btn btn-sm btn-dark">Save EOD Theme</button>
+        <span class="small text-muted">Unsafe colors or insufficient contrast are rejected.</span>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('social.reset_theme') }}" class="mt-2"
+          onsubmit="return confirm('Restore the configured EOD image theme defaults?')">
+      <button type="submit" class="btn btn-sm btn-link text-secondary p-0">Restore defaults</button>
+    </form>
+  </div>
+</div>
+
+{# ── Weekly chart upload (vision LLM) ── #}
+<div class="card mb-4 border-info">
+  <div class="card-header fw-semibold text-info-emphasis">Weekly Chart Analysis <span class="badge bg-info text-dark ms-1 fw-normal small">Vision LLM</span></div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Upload the start-of-week and end-of-week SPX weekly GEX chart screenshots.
+      <code>google/gemma-4-e4b</code> will analyse the changes and generate a tweet draft —
+      always saved as a draft, never auto-published.
+    </p>
+    <form method="post" action="{{ url_for('social.upload_charts') }}" enctype="multipart/form-data">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Start-of-week chart</label>
+          <input type="file" name="start_chart" class="form-control form-control-sm"
+                 accept=".png,.jpg,.jpeg" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">End-of-week chart</label>
+          <input type="file" name="end_chart" class="form-control form-control-sm"
+                 accept=".png,.jpg,.jpeg" required>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-info btn-sm w-100">
+            Analyse &amp; Generate Draft
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Manual JSON/XLSX EOD preview ── #}
+<div class="card mb-4 border-primary">
+  <div class="card-header fw-semibold text-primary-emphasis">
+    Manual EOD Preview
+    <span class="badge bg-primary ms-1 fw-normal small">Never publishable</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Test the complete five-post and five-image EOD presentation with hardcoded JSON or Excel
+      data. Raw contracts use the production SPX calculations; calculated metrics go directly to
+      presentation validation. Preview data is not saved to any market-data collection.
+    </p>
+    <div class="row g-3">
+      <div class="col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <div class="small fw-semibold mb-2">Built-in examples</div>
+          <div class="d-flex gap-2 flex-wrap">
+            <form method="post" action="{{ url_for('social.preview_builtin', scenario='positive') }}">
+              <input type="hidden" name="narrative_source" value="file">
+              <button type="submit" class="btn btn-sm btn-outline-success">Preview Positive</button>
+            </form>
+            <form method="post" action="{{ url_for('social.preview_builtin', scenario='negative') }}">
+              <input type="hidden" name="narrative_source" value="file">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Preview Negative</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-8">
+        <form method="post" action="{{ url_for('social.preview_upload') }}"
+              enctype="multipart/form-data" class="border rounded p-3 h-100">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold" for="preview-file">JSON or Excel file</label>
+              <input id="preview-file" type="file" name="preview_file"
+                     class="form-control form-control-sm" accept=".json,.xlsx" required>
+              <div class="form-text">Maximum 5 MB.</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold" for="narrative-source">Narrative</label>
+              <select id="narrative-source" name="narrative_source" class="form-select form-select-sm">
+                <option value="file" selected>Use file text</option>
+                <option value="lm_studio">Generate with LM Studio</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-primary btn-sm w-100">Generate Preview</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Auto-publish toggles + on-demand generation ── #}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Post Types</div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Type</th>
+          <th>Schedule</th>
+          <th class="text-center">Publishing</th>
+          <th>Generate Draft</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set types = [
+          ('premarket', 'Pre-Market Brief',  '7:45 AM CT (daily)'),
+          ('eod',       'EOD Report',        '3:15 PM CT / 4:15 PM ET (trading days)'),
+          ('eow',       'EOW Wrap',          '3:15 PM CT (Fridays)'),
+        ] %}
+        {% for pt, label, schedule in types %}
+        {% set key = 'social_' ~ pt ~ '_autopublish' %}
+        {% set autopub = settings.get(key, True) %}
+        <tr>
+          <td class="ps-3 fw-semibold">{{ label }}</td>
+          <td class="text-muted small">{{ schedule }}</td>
+          <td class="text-center">
+            {% if pt == 'eod' %}
+            <span class="badge bg-warning text-dark">Review required</span>
+            {% else %}
+            <form method="post" action="{{ url_for('social.toggle_autopublish', post_type=pt) }}">
+              <div class="form-check form-switch d-flex justify-content-center mb-0">
+                <input class="form-check-input" type="checkbox" name="enabled"
+                       {% if autopub %}checked{% endif %}
+                       onchange="this.form.submit()">
+              </div>
+            </form>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('social.generate', post_type=pt) }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Generate Draft</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Post history ── #}
+<h5 class="fw-semibold mb-3">Recent Posts <span class="text-muted fw-normal small">(last 50)</span></h5>
+
+{% if posts %}
+  {% for p in posts %}
+  <div class="card mb-4 shadow-sm {% if p.status == 'draft' %}border-warning{% elif p.status == 'published' %}border-success{% else %}border-danger{% endif %}">
+
+    {# ── Card header: meta row ── #}
+    <div class="card-header d-flex align-items-center justify-content-between py-2 gap-2 flex-wrap">
+      <div class="d-flex align-items-center gap-2">
+        <span class="fw-semibold">{{ post_type_labels.get(p.post_type, p.post_type) }}</span>
+        <span class="badge text-uppercase small
+          {% if p.status == 'published' %}bg-success
+          {% elif p.status in ('failed', 'failed_partial') %}bg-danger
+          {% else %}bg-warning text-dark{% endif %}">
+          {{ p.status|replace('_', ' ') }}
+        </span>
+        <span class="text-muted small">{{ p.trigger }}</span>
+        {% if p.review_required %}
+        <span class="badge bg-warning text-dark">Review required</span>
+        {% endif %}
+        {% if p.preview_only %}
+        <span class="badge bg-primary">Preview only — hardcoded data</span>
+        {% endif %}
+      </div>
+      <div class="text-muted small text-end">
+        <span>Created: {{ p.created_at.strftime('%b %d, %Y %H:%M CT') if p.created_at else '—' }}</span>
+        {% if p.published_at %}
+          &nbsp;·&nbsp;<span>Published: {{ p.published_at.strftime('%b %d, %Y %H:%M CT') }}</span>
+        {% endif %}
+        {% if p.tweet_ids %}
+          &nbsp;·&nbsp;<span class="font-monospace">{{ p.tweet_ids[0] }}{% if p.tweet_ids|length > 1 %} +{{ p.tweet_ids|length - 1 }}{% endif %}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Card body: tweet thread ── #}
+    <div class="card-body p-3">
+      {% if p.post_type == 'eod' %}
+      <div class="d-flex flex-wrap gap-3 small text-muted mb-3">
+        <span>Source trade date: {{ p.source_trade_date.strftime('%Y-%m-%d') if p.source_trade_date else '—' }}</span>
+        <span>Text model: <code>{{ p.llm_model or '—' }}</code></span>
+        <span>Validation: {{ 'Passed' if p.validation_result and p.validation_result.ok else 'Failed' }}</span>
+        {% if p.preview_only %}
+        <span>Mode: <strong>{{ p.input_mode|upper }}</strong></span>
+        <span>Input: <code>{{ p.input_filename }}</code> ({{ p.input_format|upper }})</span>
+        <span>Narrative: {{ 'LM Studio' if p.narrative_source == 'lm_studio' else 'File provided' }}</span>
+        {% endif %}
+      </div>
+      {% if p.preview_only %}
+      <div class="alert alert-primary py-2 small mb-3">
+        <strong>Preview only — hardcoded data.</strong>
+        This record is permanently blocked from publishing to X.
+      </div>
+      {% endif %}
+      {% endif %}
+      {% if p.error_detail %}
+      <div class="alert alert-danger py-2 small">
+        <strong>{{ 'Partial X thread failure' if p.status == 'failed_partial' else 'Failure' }}:</strong>
+        {{ p.error_detail }}
+        {% if p.partial_tweet_ids %}
+        <div class="mt-1">
+          Already created on X — clean up manually if needed:
+          {% for tweet_id in p.partial_tweet_ids %}
+          <a href="https://x.com/i/web/status/{{ tweet_id }}" target="_blank" rel="noopener noreferrer"
+             class="font-monospace ms-1">{{ tweet_id }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+      <form method="post" action="{{ url_for('social.update_tweets', post_id=p.id) }}" id="form-{{ p.id }}">
+
+        {% if p.post_type == 'eod' and p.media_version in [2, 3, eod_media_version] %}
+        {% if p.media_version != eod_media_version %}
+        <div class="alert alert-warning py-2 small mb-3">
+          <strong>Legacy media version {{ p.media_version }}.</strong>
+          These five images remain viewable, but cannot be published. Generate a new draft
+          to use the current institutional presentation.
+        </div>
+        {% else %}
+        <div class="alert alert-info py-2 small mb-3">
+          <strong>Content-only images use the validated GEX analysis.</strong>
+          Editing the post copy below does not change the computed media. Generate a new
+          manual draft if its levels or image wording need to change.
+        </div>
+        {% endif %}
+
+        {% for tweet in p.tweets %}
+        {% set loop_idx = loop.index0 %}
+        <div class="d-flex gap-2 mb-4">
+          {# Preserve the original Social Studio thread preview chrome. #}
+          <div class="d-flex flex-column align-items-center" style="width:40px; flex-shrink:0;">
+            <div class="rounded-circle bg-dark d-flex align-items-center justify-content-center text-white fw-bold"
+                 style="width:40px;height:40px;font-size:14px;flex-shrink:0;">
+              GX
+            </div>
+            {% if not loop.last %}
+            <div style="width:2px; flex:1; background:#3a3a3a; margin-top:4px; min-height:24px;"></div>
+            {% endif %}
+          </div>
+
+          <div class="flex-grow-1" style="min-width:0;">
+            <div class="d-flex align-items-baseline gap-1 mb-2">
+              <span class="fw-bold small">GEX Intelligence</span>
+              <span class="text-muted small">@gexintelligence</span>
+              {% if loop_idx == 0 %}
+              <span class="badge bg-secondary ms-auto" style="font-size:10px;">Tweet 1</span>
+              {% else %}
+              <span class="ms-auto text-muted" style="font-size:11px;">{{ loop_idx + 1 }}/{{ p.tweets|length }}</span>
+              {% endif %}
+            </div>
+
+            <div class="small text-muted mb-2">Image {{ loop.index }} of {{ p.tweets|length }} · attached to post {{ loop.index }}</div>
+            <img src="{{ url_for('social.media_image', post_id=p.id, post_index=loop_idx) }}"
+                 alt="{{ p.media_assets[loop_idx].alt_text if p.media_assets and p.media_assets|length > loop_idx else 'EOD thread image' }}"
+                 class="img-fluid rounded border d-block mx-auto mb-2"
+                 style="width:100%; max-width:760px; max-height:428px; object-fit:contain; background:#0D1117;">
+            <label class="visually-hidden" for="tweet-{{ p.id }}-{{ loop_idx }}">
+              Accessible X text — post {{ loop.index }}
+            </label>
+            {% if p.status == 'draft' %}
+            <textarea id="tweet-{{ p.id }}-{{ loop_idx }}" name="tweet_{{ loop_idx }}"
+                      class="form-control form-control-sm font-monospace tweet-ta"
+                      rows="4" maxlength="280" data-idx="{{ loop_idx }}"
+                      style="resize:vertical; white-space:pre-wrap; font-size:13px;">{{ tweet }}</textarea>
+            <div class="d-flex justify-content-end mt-1">
+              <span class="tweet-counter text-muted" style="font-size:11px;"
+                    id="counter-{{ p.id }}-{{ loop_idx }}">{{ tweet|length }}/280</span>
+            </div>
+            {% else %}
+            <div class="border rounded p-2 small font-monospace"
+                 style="white-space:pre-wrap; font-size:13px; background:#f8f9fa;">{{ tweet }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+
+        {% else %}
+        {% if p.post_type == 'eod' %}
+        <div class="alert alert-warning py-2 small mb-3">
+          This is a legacy single-image EOD draft. It remains available for review, but cannot be
+          published. Generate a current draft to create the required five-image thread.
+        </div>
+        {% endif %}
+
+        {# Chart attached to tweet 0 — shown above the first tweet #}
+        {% if p.chart_path %}
+        <div class="mb-3">
+          {% if p.post_type == 'eod' %}
+          <div class="small text-muted mb-1">Attached to post 1 only</div>
+          {% endif %}
+          <img src="{{ url_for('social.chart_image', post_id=p.id) }}"
+               alt="Chart" class="img-fluid rounded border"
+               style="max-height:340px; object-fit:contain; background:#111;">
+        </div>
+        {% endif %}
+
+        {# Mock Twitter/X thread #}
+        {% for tweet in p.tweets %}
+        {% set loop_idx = loop.index0 %}
+        <div class="d-flex gap-2 mb-3">
+
+          {# Avatar column #}
+          <div class="d-flex flex-column align-items-center" style="width:40px; flex-shrink:0;">
+            {# Avatar circle #}
+            <div class="rounded-circle bg-dark d-flex align-items-center justify-content-center text-white fw-bold"
+                 style="width:40px;height:40px;font-size:14px;flex-shrink:0;">
+              GX
+            </div>
+            {# Thread line below avatar (not on last tweet) #}
+            {% if not loop.last %}
+            <div style="width:2px; flex:1; background:#3a3a3a; margin-top:4px; min-height:24px;"></div>
+            {% endif %}
+          </div>
+
+          {# Tweet content column #}
+          <div class="flex-grow-1">
+            {# Mock header #}
+            <div class="d-flex align-items-baseline gap-1 mb-1">
+              <span class="fw-bold small">GEX Intelligence</span>
+              <span class="text-muted small">@gexintelligence</span>
+              {% if loop_idx == 0 %}
+              <span class="badge bg-secondary ms-auto" style="font-size:10px;">Tweet 1</span>
+              {% else %}
+              <span class="ms-auto text-muted" style="font-size:11px;">{{ loop_idx + 1 }}/{{ p.tweets|length }}</span>
+              {% endif %}
+            </div>
+
+            {# Editable textarea (read-only for published/failed) #}
+            {% if p.status == 'draft' %}
+            <textarea name="tweet_{{ loop_idx }}"
+                      class="form-control form-control-sm font-monospace tweet-ta"
+                      rows="4"
+                      maxlength="280"
+                      data-idx="{{ loop_idx }}"
+                      style="resize:vertical; white-space:pre-wrap; font-size:13px;">{{ tweet }}</textarea>
+            <div class="d-flex justify-content-end mt-1">
+              <span class="tweet-counter text-muted" style="font-size:11px;"
+                    id="counter-{{ p.id }}-{{ loop_idx }}">{{ tweet|length }}/280</span>
+            </div>
+            {% else %}
+            <div class="border rounded p-2 small font-monospace"
+                 style="white-space:pre-wrap; font-size:13px; background:#f8f9fa;">{{ tweet }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+      </form>{# end form #}
+    </div>
+
+    {# ── Card footer: actions ── #}
+    <div class="card-footer d-flex gap-2 py-2">
+      {% if p.status == 'draft' %}
+      <button type="submit" form="form-{{ p.id }}" class="btn btn-sm btn-outline-secondary">
+        Save Edits
+      </button>
+      <form method="post" action="{{ url_for('social.publish', post_id=p.id) }}"
+            onsubmit="return confirm('Publish this thread to Twitter/X now?')">
+        {% if p.preview_only %}
+        <button type="button" class="btn btn-sm btn-primary" disabled title="Preview data can never be published">
+          Preview only — publishing disabled
+        </button>
+        {% elif p.post_type == 'eod' and p.media_version != eod_media_version %}
+        <button type="button" class="btn btn-sm btn-secondary" disabled title="Generate a current five-image EOD draft first">
+          Legacy draft — regenerate to publish
+        </button>
+        {% else %}
+        <button type="submit" class="btn btn-sm btn-success">Publish to Twitter/X</button>
+        {% endif %}
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('social.delete', post_id=p.id) }}"
+            onsubmit="return confirm('Permanently delete this post?')"
+            class="ms-auto">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+      </form>
+    </div>
+
+  </div>
+  {% endfor %}
+
+{% else %}
+<div class="text-muted">No posts yet. Use "Generate Draft" above to create the first one.</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Live conservative X-weighted character counter for tweet textareas.
+document.querySelectorAll('.tweet-ta').forEach(function(ta) {
+  const postId = ta.closest('form').id.replace('form-', '');
+  const idx    = ta.dataset.idx;
+  const counter = document.getElementById('counter-' + postId + '-' + idx);
+  function update() {
+    let len = 0;
+    for (const ch of ta.value) {
+      const cp = ch.codePointAt(0);
+      const single = (cp >= 0 && cp <= 4351) ||
+        (cp >= 8192 && cp <= 8205) ||
+        (cp >= 8208 && cp <= 8223) ||
+        (cp >= 8242 && cp <= 8247);
+      len += single ? 1 : 2;
+    }
+    if (counter) {
+      counter.textContent = len + '/280';
+      counter.style.color = len > 260 ? (len >= 280 ? '#dc3545' : '#fd7e14') : '';
+    }
+  }
+  ta.addEventListener('input', update);
+  update();
+});
+</script>
+{% endblock %}

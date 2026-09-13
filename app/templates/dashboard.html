@@ -1,0 +1,2029 @@
+{% extends "base.html" %}
+{% block main_class %}container-fluid px-3 px-lg-4{% endblock %}
+{% block title %}Dashboard — GEX Intelligence{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+{% endblock %}
+
+{% block content %}
+{% set has_full_data_access = user_role in ('paid', 'staff', 'admin') %}
+{% include "auth/_verify_banner.html" %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">GEX Intelligence</h2>
+  <span id="last-updated" class="text-muted small"></span>
+</div>
+
+{# ── Controls ── #}
+<div class="card bg-dark border-secondary mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+
+      {# Symbol selector — free vs paid tiers #}
+      <div class="col-lg-5 col-md-6">
+        <label class="form-label text-muted small mb-1">Symbol</label>
+        <div id="symbol-strip" class="symbol-strip">
+          <span class="text-muted small">Loading…</span>
+        </div>
+      </div>
+
+      {# Granularity #}
+      <div class="col-lg-4 col-md-6">
+        <label class="form-label text-muted small mb-1">View</label>
+        <div id="granularity-strip" class="btn-group flex-wrap" role="group">
+          {# populated by JS #}
+        </div>
+      </div>
+
+      {# Date picker #}
+      <div class="col-lg-3 col-md-12">
+        <label class="form-label text-muted small mb-1">Date</label>
+        <div id="date-controls">
+          {# populated by JS based on tier #}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{# ── No-data alert (GEX chart) ── #}
+<div id="no-data-alert" class="alert alert-secondary d-none mb-3" role="alert">
+  <strong>Data not available yet</strong> for this selection.
+  <span id="no-data-last-updated"></span>
+</div>
+
+<div class="dashboard-stack d-flex flex-column gap-3 w-100">
+
+  {# Price History — 45-day OHLCV chart + data #}
+  <section class="dashboard-section w-100" id="ohlcv-section">
+    <div class="card bg-dark border-secondary" id="ohlcv-card">
+      <div class="card-header border-secondary py-2 d-flex align-items-center justify-content-between">
+        <span class="fw-semibold" id="ohlcv-title">Price History</span>
+        <span class="text-muted small" id="ohlcv-subtitle">Last 45 trading days</span>
+      </div>
+      <div class="card-body py-2" id="ohlcv-body">
+        <div id="ohlcv-loading" class="text-muted small py-3 d-none">Loading price history…</div>
+        <div id="ohlcv-empty" class="text-muted py-5 text-center d-none">No OHLCV data available for this symbol.</div>
+        <div id="ohlcv-content" class="d-none">
+          <ul class="nav nav-tabs ohlcv-card-tabs mb-2" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="ohlcv-chart-tab" type="button" role="tab"
+                data-ohlcv-target="#ohlcv-pane-chart" aria-selected="true">
+                Chart
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="ohlcv-data-tab" type="button" role="tab"
+                data-ohlcv-target="#ohlcv-pane-data" aria-selected="false">
+                Data
+              </button>
+            </li>
+          </ul>
+          <div class="ohlcv-card-tab-content">
+            <div class="ohlcv-tab-pane show active" id="ohlcv-pane-chart" role="tabpanel">
+              <div id="ohlcv-chart" class="ohlcv-plot"></div>
+            </div>
+            <div class="ohlcv-tab-pane" id="ohlcv-pane-data" role="tabpanel">
+              <div class="table-responsive ohlcv-table-wrap">
+                <table class="table table-sm table-dark table-hover mb-0 ohlcv-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th class="text-end">Open</th>
+                      <th class="text-end">High</th>
+                      <th class="text-end">Low</th>
+                      <th class="text-end">Close</th>
+                      <th class="text-end">Volume</th>
+                      <th class="text-end">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ohlcv-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <p class="text-muted small mb-0 mt-2" id="ohlcv-source-note">Daily bars via yfinance (may be delayed).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# Term Structure — "GEX Next 3 Trading Days" card (paid + index only) #}
+  <section class="dashboard-section w-100" id="term-structure-section">
+    <div class="card bg-dark border-secondary" id="term-structure-card">
+      <div class="card-header border-secondary py-2 d-flex align-items-center justify-content-between">
+        <span class="fw-semibold" id="term-structure-title">GEX Next 3 Trading Days</span>
+        <div class="d-flex align-items-center gap-2">
+          <div class="btn-group btn-group-sm" id="ts-view-toggle" role="group">
+            <button type="button" class="btn btn-outline-secondary active" data-ts-view="chart">Chart</button>
+            <button type="button" class="btn btn-outline-secondary" data-ts-view="table">Table</button>
+          </div>
+          <span class="text-muted small" id="ts-subtitle"></span>
+          {% if not has_full_data_access %}
+            <a href="{{ url_for('billing.upgrade') }}" class="btn btn-warning btn-sm">Upgrade to unlock</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body py-3" id="ts-body">
+        {% if has_full_data_access %}
+          <div id="ts-loading" class="text-muted small py-3 d-none">Loading term structure…</div>
+          <div id="ts-empty" class="text-muted py-3 d-none"></div>
+          <div id="ts-panels" class="row g-3 d-none"></div>
+        {% else %}
+          <div class="position-relative" style="min-height:140px;">
+            <div style="min-height:140px;background:rgba(255,255,255,0.02);filter:blur(4px);pointer-events:none;"></div>
+            <div class="position-absolute top-50 start-50 translate-middle text-center">
+              <span class="badge bg-warning text-dark fs-6 px-3 py-2">Paid feature</span>
+              <p class="text-muted small mt-2 mb-0">Next 3 expiry dates' GEX for index symbols.</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# GEX by Strike + Summary side by side #}
+  <section class="dashboard-section w-100 gex-summary-row">
+    <div class="row g-3 align-items-stretch">
+      <div class="col-lg-8">
+        <div class="card bg-dark border-secondary h-100">
+          <div class="card-header border-secondary d-flex align-items-center justify-content-between py-2">
+            <span class="fw-semibold" id="chart-title">GEX by Strike</span>
+            <div class="d-flex align-items-center gap-2">
+              <span class="text-muted small" id="gex-last-updated"></span>
+              <span class="badge bg-secondary" id="spot-badge"></span>
+            </div>
+          </div>
+          <div class="card-body p-2">
+            {# 4-tab weekly expiry toggle — populated by JS for stock symbols on the Weekly view #}
+            <div id="weekly-tab-toggle" class="d-none"></div>
+            {# Intraday snapshot time-box picker — populated by JS on the 0DTE view #}
+            <div id="intraday-snapshot-picker" class="d-none">
+              <div class="text-muted small mb-1" id="intraday-timezone-label">Intraday snapshots (CT)</div>
+              <div id="intraday-snapshot-row" class="d-flex flex-wrap gap-1"></div>
+            </div>
+            <div class="chart-canvas-wrap">
+              <canvas id="gex-chart"></canvas>
+              <div id="gex-chart-loading" class="chart-loading-overlay d-none">
+                <div class="spinner-border text-secondary" role="status">
+                  <span class="visually-hidden">Loading…</span>
+                </div>
+              </div>
+            </div>
+            <div id="chart-empty" class="text-center text-muted py-5 d-none">
+              Select a symbol above to load data.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card bg-dark border-secondary h-100">
+          <div class="card-header border-secondary py-2">
+            <span class="fw-semibold">Summary</span>
+          </div>
+          <div class="card-body d-flex flex-column" id="summary-panel">
+            <p class="summary-intro text-muted small mb-3">
+              A quick read on dealer gamma positioning for your selected symbol and view.
+              These numbers come from open-interest-weighted options data at snapshot time.
+            </p>
+            <div class="text-center text-muted py-3 flex-grow-1 d-flex align-items-center justify-content-center" id="summary-empty">
+              No data loaded yet.
+            </div>
+            <div id="summary-content" class="d-none flex-grow-1">
+              <div class="summary-metrics d-flex flex-column gap-3">
+                <div class="summary-metric">
+                  <div class="text-muted small">Net GEX</div>
+                  <div class="fs-4 fw-bold" id="s-net-gex">—</div>
+                  <p class="summary-hint mb-0">
+                    Total gamma exposure across all strikes. Positive net GEX usually means
+                    dealers are net long gamma and may buy dips / sell rips, which can dampen
+                    volatility. Negative net GEX suggests the opposite — moves may amplify.
+                  </p>
+                </div>
+                <div class="summary-metric">
+                  <div class="text-muted small">Call Wall</div>
+                  <div><span class="badge fs-6 bg-success" id="s-call-wall">—</span></div>
+                  <p class="summary-hint mb-0">
+                    The strike with the heaviest call-side gamma exposure. Price often
+                    gravitates toward this level as dealers hedge; it is commonly watched
+                    as a potential ceiling or resistance zone.
+                  </p>
+                </div>
+                <div class="summary-metric">
+                  <div class="text-muted small">Put Wall</div>
+                  <div><span class="badge fs-6 bg-danger" id="s-put-wall">—</span></div>
+                  <p class="summary-hint mb-0">
+                    The strike with the heaviest put-side gamma exposure. Dealer hedging
+                    around this level can slow selloffs, so it is often treated as a
+                    potential floor or support zone.
+                  </p>
+                </div>
+                <div class="summary-metric">
+                  <div class="text-muted small">Spot Price</div>
+                  <div class="fs-5 fw-semibold" id="s-spot">—</div>
+                  <p class="summary-hint mb-0">
+                    The underlying’s last price when this snapshot was taken. Compare spot
+                    to the call and put walls to see whether price is trading between,
+                    above, or below key gamma levels.
+                  </p>
+                </div>
+              </div>
+              <div class="text-muted small mt-3" id="s-as-of"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# Rolling 21-day trend (paid only) #}
+  <section class="dashboard-section w-100" id="trend-row">
+    <div class="card bg-dark border-secondary" id="trend-card">
+      <div class="card-header border-secondary py-2">
+        <div class="d-flex align-items-center justify-content-between">
+          <span class="fw-semibold">Rolling 21-Day Net GEX Trend</span>
+          {% if not has_full_data_access %}
+            <a href="{{ url_for('billing.upgrade') }}" class="btn btn-warning btn-sm">Upgrade to unlock</a>
+          {% endif %}
+        </div>
+        <span class="text-muted small" id="trend-last-updated"></span>
+      </div>
+      <div class="card-body p-2" id="trend-body">
+        {% if has_full_data_access %}
+          <div class="trend-canvas-wrap">
+            <canvas id="trend-chart"></canvas>
+          </div>
+        {% else %}
+          <div class="trend-blur-wrapper trend-canvas-wrap position-relative">
+            <canvas id="trend-chart-blur" style="filter:blur(5px);pointer-events:none;"></canvas>
+            <div class="position-absolute top-50 start-50 translate-middle text-center">
+              <span class="badge bg-warning text-dark fs-6 px-3 py-2">Paid feature</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# Parallel Coordinates — per-strike greeks (paid only) #}
+  <section class="dashboard-section w-100" id="greeks-section">
+    <div class="card bg-dark border-secondary" id="greeks-card">
+      <div class="card-header border-secondary py-2 d-flex align-items-center justify-content-between">
+        <span class="fw-semibold">Parallel Coordinates</span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-muted small" id="greeks-last-updated"></span>
+          {% if not has_full_data_access %}
+            <a href="{{ url_for('billing.upgrade') }}" class="btn btn-warning btn-sm">Upgrade to unlock</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-2" id="greeks-body">
+        {% if has_full_data_access %}
+          <div class="d-flex gap-2 mb-2" id="greeks-filter">
+            <button class="btn btn-sm btn-outline-light active" data-filter="">All</button>
+            <button class="btn btn-sm btn-outline-primary" data-filter="C">Calls only</button>
+            <button class="btn btn-sm btn-outline-danger"  data-filter="P">Puts only</button>
+          </div>
+          <div id="greeks-loading" class="text-muted small py-3 d-none">Loading…</div>
+          <div id="greeks-empty" class="text-muted py-3 d-none"></div>
+          <div id="greeks-chart" style="min-height:420px;"></div>
+        {% else %}
+          <div class="position-relative" style="min-height:160px;">
+            <div style="min-height:160px;background:rgba(255,255,255,0.02);filter:blur(4px);pointer-events:none;"></div>
+            <div class="position-absolute top-50 start-50 translate-middle text-center">
+              <span class="badge bg-warning text-dark fs-6 px-3 py-2">Paid feature</span>
+              <p class="text-muted small mt-2 mb-0">Compare strikes, GEX, expiry, volume, and open interest across all expirations.</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# Weekly GEX Forward Trend — free + paid, any allowed symbol #}
+  <section class="dashboard-section w-100" id="weekly-trend-section">
+    <div class="card bg-dark border-secondary" id="weekly-trend-card">
+      <div class="card-header border-secondary py-2">
+        <div class="d-flex align-items-center justify-content-between">
+          <span class="fw-semibold">Weekly GEX Forward Trend</span>
+        </div>
+        <span class="text-muted small" id="weekly-trend-last-updated"></span>
+      </div>
+      <div class="card-body p-2">
+        <div id="weekly-trend-loading" class="text-muted small py-3 d-none">Loading…</div>
+        <div id="weekly-trend-empty" class="text-muted py-5 text-center d-none">No forward trend data available.</div>
+        <div id="weekly-trend-content" class="d-none">
+          <div style="position:relative;height:220px;">
+            <canvas id="weekly-trend-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# Monthly OPEX Forward Trend — free + paid, any allowed symbol #}
+  <section class="dashboard-section w-100" id="monthly-trend-section">
+    <div class="card bg-dark border-secondary" id="monthly-trend-card">
+      <div class="card-header border-secondary py-2">
+        <div class="d-flex align-items-center justify-content-between">
+          <span class="fw-semibold">Monthly OPEX Forward Trend</span>
+        </div>
+        <span class="text-muted small" id="monthly-trend-last-updated"></span>
+      </div>
+      <div class="card-body p-2">
+        <div id="monthly-trend-loading" class="text-muted small py-3 d-none">Loading…</div>
+        <div id="monthly-trend-empty" class="text-muted py-5 text-center d-none">No forward trend data available.</div>
+        <div id="monthly-trend-content" class="d-none">
+          <div style="position:relative;height:220px;">
+            <canvas id="monthly-trend-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>{# /.dashboard-stack #}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        integrity="sha256-s4B2di9zY7yekStouOA0gmeY213ya7YfAA7C56MTe8c="
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"
+        integrity="sha256-8BDDxChCyYOB80/6VhOpmr7qI5EIDyDPzxsWePPFVfo="
+        crossorigin="anonymous"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script>
+// ── Constants from server ──────────────────────────────────────────────────
+const USER_ROLE = {{ user_role | tojson }};
+// Staff/admin need the same dashboard data access as paid users. The API uses
+// the same role set; keep the rendered controls aligned with server auth.
+const IS_PAID = ['paid', 'staff', 'admin'].includes(USER_ROLE);
+const UPGRADE_URL = {{ url_for('billing.upgrade') | tojson }};
+const GEX_0DTE_INTERVAL_MINUTES = {{ gex_0dte_interval_minutes | tojson }};
+
+const FREE_INDEX_TYPES  = ['0dte','weekly','monthly'];
+const FREE_STOCK_TYPES  = ['weekly'];
+const PAID_EXTRA_TYPES  = [];
+const INDEX_SYMBOLS     = ['SPY','QQQ','SPX','NDX','RUT','VIX','IWM','NIFTY'];
+const TERM_STRUCTURE_SYMBOLS = ['SPX','NDX','SPY','QQQ','IWM','NIFTY'];
+
+const TYPE_LABELS = {
+  '0dte':    '0DTE',
+  'weekly':  'Weekly',
+  'monthly': 'Monthly',
+};
+
+// URL param ⇄ internal snapType mapping. The URL uses human-readable
+// granularity names (per the state-persistence spec); the code uses the
+// collection-derived snapType. Intraday is internally '0dte'.
+const SNAPTYPE_TO_URLTYPE = { '0dte': 'intraday', 'weekly': 'weekly', 'monthly': 'monthly' };
+const URLTYPE_TO_SNAPTYPE = { 'intraday': '0dte', 'weekly': 'weekly', 'monthly': 'monthly' };
+
+// ── State ──────────────────────────────────────────────────────────────────
+let state = {
+  symbols: [],       // raw /api/symbols response
+  symbol: null,
+  assetType: null,
+  provider: 'schwab',
+  marketTimezone: 'America/Chicago',
+  currency: 'USD',
+  displayUnit: 'billion',
+  snapType: null,
+  date: null,        // ISO string YYYY-MM-DD
+  expiryDate: null,  // ISO string YYYY-MM-DD — selected tab on the stock weekly toggle
+  dateExplicit: false,          // true once the user touches the paid date picker
+  intradaySnapshots: [],        // last fetch, timestamp descending (latest first)
+  intradaySnapshotSymbol: null, // symbol the current snapshot list belongs to
+  intradaySnapshotRequestedDate: null, // date param sent (null = "server picks latest")
+  intradaySnapshotDate: null,   // server-resolved actual trade_date of that list
+  selectedTimestamp: null,      // "HH:MM" CT — currently displayed snapshot
+  userSelectedSnapshot: false,  // true once the user manually picks an earlier box
+  pendingTimestamp: null,       // one-shot ?ts= restore target, applied once snapshots load
+  intradayPollTimer: null,
+};
+let gexChart   = null;
+let trendChart = null;
+let ohlcvAbort = null;
+let ohlcvBars  = null;
+let _greeksFilter = '';
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  initOhlcvCardTabs();
+  // Always re-fetch symbols on dashboard load — never rely on stale client state
+  await loadSymbols();
+  if (state.symbols.length) restoreFromUrl();
+});
+
+// ── URL state persistence ───────────────────────────────────────────────────
+// Mirror the current view into the URL query string so a refresh, bookmark, or
+// shared link reopens the exact same view. Uses replaceState (not pushState) so
+// browser Back/Forward steps between pages, not between every in-dashboard click.
+function syncUrl() {
+  if (!state.symbol || !state.snapType) return;
+  const urlType = SNAPTYPE_TO_URLTYPE[state.snapType];
+  if (!urlType) return;
+  const p = new URLSearchParams();
+  p.set('symbol', state.symbol);
+  p.set('type', urlType);
+  if ((urlType === 'weekly' || urlType === 'monthly') && state.expiryDate) {
+    p.set('expiry', state.expiryDate);
+  }
+  if (urlType === 'intraday' && state.selectedTimestamp) {
+    p.set('ts', state.selectedTimestamp);
+  }
+  history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
+}
+
+// Resolve the initial view from URL params, falling back to SPY/intraday.
+// A URL param is only a hint: an unknown/locked symbol, unsupported type, or a
+// bad expiry/ts silently falls back to the default — never an error page.
+// Tier enforcement is NOT bypassed: a locked (paid) symbol for a free user
+// falls back to SPY here, and the server re-checks every /api/gex request.
+function restoreFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const wantSymbol = (q.get('symbol') || '').toUpperCase();
+  const wantType   = q.get('type');
+  const wantExpiry = q.get('expiry');
+  const wantTs     = q.get('ts');
+
+  // Symbol must exist in the catalog AND be unlocked for this user; otherwise
+  // fall back to SPY, then any unlocked symbol, then whatever exists.
+  let entry = wantSymbol
+    ? state.symbols.find(s => s.symbol === wantSymbol && !s.locked)
+    : null;
+  if (!entry) {
+    entry = state.symbols.find(s => s.symbol === 'SPY' && !s.locked)
+         || state.symbols.find(s => !s.locked)
+         || state.symbols[0];
+  }
+  const assetType = entry.asset_type
+    || (INDEX_SYMBOLS.includes(entry.symbol) ? 'index' : 'stock');
+
+  // Seed granularity/selection BEFORE selectSymbol so the async loaders
+  // (weekly tabs, intraday snapshots) restore the requested tab/box rather
+  // than resetting to their own defaults. Invalid values are validated away
+  // downstream (renderGranularityStrip / renderWeeklyTabs / loadIntradaySnapshots).
+  state.snapType        = URLTYPE_TO_SNAPTYPE[wantType] || '0dte';
+  state.expiryDate      = (wantType === 'weekly' || wantType === 'monthly') ? (wantExpiry || null) : null;
+  state.pendingTimestamp = wantType === 'intraday' ? (wantTs || null) : null;
+  state.selectedTimestamp = null;
+  state.userSelectedSnapshot = false;
+
+  selectSymbol(entry.symbol, assetType);
+}
+
+// ── Symbol loading ─────────────────────────────────────────────────────────
+async function loadSymbols() {
+  const resp = await fetch('/api/symbols');
+  if (!resp.ok) return;
+  const data = await resp.json();
+  state.symbols = data.symbols;
+  renderSymbolStrip();
+}
+
+function renderSymbolStrip() {
+  const strip = document.getElementById('symbol-strip');
+  strip.innerHTML = '';
+
+  const freeSymbols = state.symbols.filter(s => s.tier === 'free').sort((a, b) => a.symbol.localeCompare(b.symbol));
+  const paidSymbols = state.symbols.filter(s => s.tier === 'paid').sort((a, b) => a.symbol.localeCompare(b.symbol));
+  const showUpgradeHint = paidSymbols.some(s => s.locked);
+
+  const appendSection = (tier, label, symbols, extraHtml = '') => {
+    if (!symbols.length) return;
+    const section = document.createElement('div');
+    section.className = `symbol-tier-section symbol-tier-${tier}`;
+    section.innerHTML = `
+      <div class="symbol-tier-header">
+        <span class="symbol-tier-label">${label}</span>
+        ${extraHtml}
+      </div>
+      <div class="symbol-tier-buttons d-flex flex-wrap gap-1"></div>`;
+    const buttons = section.querySelector('.symbol-tier-buttons');
+    for (const s of symbols) {
+      buttons.appendChild(createSymbolButton(s));
+    }
+    strip.appendChild(section);
+  };
+
+  const paidExtra = showUpgradeHint
+    ? `<a href="${UPGRADE_URL}" class="symbol-tier-upgrade small">Upgrade to unlock</a>`
+    : '';
+
+  appendSection('free', 'Free', freeSymbols);
+  appendSection('paid', 'Paid', paidSymbols, paidExtra);
+}
+
+function createSymbolButton(s) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-sm symbol-btn' + (s.locked ? ' locked' : '');
+  btn.dataset.symbol = s.symbol;
+  btn.dataset.assetType = s.asset_type;
+  btn.disabled = s.locked;
+  btn.textContent = s.symbol;
+  if (s.locked) {
+    btn.title = 'Upgrade to unlock this symbol';
+  }
+  btn.addEventListener('click', () => selectSymbol(s.symbol, s.asset_type));
+  return btn;
+}
+
+// ── Symbol selection ───────────────────────────────────────────────────────
+function selectSymbol(symbol, assetType) {
+  const entry = state.symbols.find(s => s.symbol === symbol) || {};
+  state.symbol    = symbol;
+  state.assetType = assetType || (INDEX_SYMBOLS.includes(symbol) ? 'index' : 'stock');
+  state.provider = entry.provider || 'schwab';
+  state.marketTimezone = entry.market_timezone || 'America/Chicago';
+  state.currency = entry.currency || 'USD';
+  state.displayUnit = entry.display_unit || 'billion';
+  state.dateExplicit = false;
+
+  const timezoneLabel = document.getElementById('intraday-timezone-label');
+  if (timezoneLabel) timezoneLabel.textContent = `Intraday snapshots (${state.marketTimezone === 'Asia/Kolkata' ? 'IST' : 'CT'})`;
+  const termTitle = document.getElementById('term-structure-title');
+  if (termTitle) termTitle.textContent = state.provider === 'zerodha'
+    ? 'GEX Next 3 Actual Expiries'
+    : 'GEX Next 3 Trading Days';
+
+  // Highlight active button
+  document.querySelectorAll('.symbol-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.symbol === symbol);
+  });
+
+  renderGranularityStrip();
+  renderDateControls();
+  reloadDashboard();
+}
+
+function reloadDashboard() {
+  loadGexData();
+  loadOhlcv();
+  if (IS_PAID) {
+    loadGreeks(_greeksFilter);
+    loadTermStructure();
+  }
+}
+
+// ── Granularity strip ──────────────────────────────────────────────────────
+function allowedTypes() {
+  if (IS_PAID) {
+    return state.assetType === 'index'
+      ? [...FREE_INDEX_TYPES, ...PAID_EXTRA_TYPES]
+      : [...FREE_STOCK_TYPES, 'monthly', ...PAID_EXTRA_TYPES];
+  }
+  return state.assetType === 'index' ? FREE_INDEX_TYPES : FREE_STOCK_TYPES;
+}
+
+function renderGranularityStrip() {
+  const strip = document.getElementById('granularity-strip');
+  strip.innerHTML = '';
+  const types = allowedTypes();
+
+  // Default snap type: first in list if current is invalid
+  if (!types.includes(state.snapType)) {
+    state.snapType = types[0];
+  }
+
+  for (const t of types) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary';
+    btn.dataset.type = t;
+    btn.textContent = TYPE_LABELS[t] || t;
+    if (t === state.snapType) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      state.snapType = t;
+      strip.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('active', b.dataset.type === t));
+      renderDateControls();
+      reloadDashboard();
+    });
+    strip.appendChild(btn);
+  }
+}
+
+// ── Date controls ──────────────────────────────────────────────────────────
+function renderWeekToggle(container) {
+  const grp = document.createElement('div');
+  grp.className = 'btn-group w-100';
+
+  const { currentMonday, nextMonday } = weekWindow();
+  const weeks = [
+    { label: 'Current Wk', iso: currentMonday },
+    { label: 'Next Wk',    iso: nextMonday },
+  ];
+  const defaultDate = state.date || currentMonday;
+
+  for (const w of weeks) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary';
+    btn.dataset.iso = w.iso;
+    btn.textContent = w.label;
+    if (w.iso === defaultDate) { btn.classList.add('active'); state.date = w.iso; }
+    btn.addEventListener('click', () => {
+      state.date = w.iso;
+      grp.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('active', b.dataset.iso === w.iso));
+      reloadDashboard();
+    });
+    grp.appendChild(btn);
+  }
+  container.appendChild(grp);
+}
+
+function renderCurrentWeekIndicator(container) {
+  const { currentMonday } = weekWindow();
+  if (!state.date) state.date = currentMonday;
+  const lbl = document.createElement('span');
+  lbl.className = 'form-control form-control-sm bg-dark text-light border-secondary d-block text-center';
+  lbl.style.cursor = 'default';
+  lbl.textContent = `Current week (starts ${currentMonday})`;
+  container.appendChild(lbl);
+}
+
+function renderDateControls() {
+  const container = document.getElementById('date-controls');
+  container.innerHTML = '';
+
+  // The 4-tab pill toggle (Past Week | This Week | Next Week | Week+2) lives
+  // inside the Weekly GEX card itself, not here in the controls bar.
+  updateWeeklyTabToggle();
+
+  // Stock weekly: the in-card toggle is the primary control for all tiers.
+  // Paid users additionally get the full date picker here in the controls bar.
+  if (state.assetType === 'stock' && state.snapType === 'weekly') {
+    if (IS_PAID) {
+      renderPaidWeeklyControls(container);
+    }
+    return;
+  }
+
+  if (IS_PAID) {
+    if (state.snapType === 'weekly') {
+      // Paid weekly: full date picker (picks any trade_date) plus a
+      // "this week" strip of Mon–Fri buttons for the current expiry week.
+      renderPaidWeeklyControls(container);
+    } else {
+      const inp = document.createElement('input');
+      inp.type  = 'date';
+      inp.className = 'form-control form-control-sm bg-dark text-light border-secondary';
+      inp.id    = 'date-input';
+      inp.value = state.date || todayISO();
+      inp.addEventListener('change', () => {
+        state.date = inp.value;
+        state.dateExplicit = true;
+        reloadDashboard();
+      });
+      container.appendChild(inp);
+      if (!state.date) state.date = inp.value;
+    }
+    return;
+  }
+
+  // Free index tier: current week only for weekly (next week is paid),
+  // and only the latest day's snapshot — no stepping back within the week.
+  if (state.snapType === 'weekly') {
+    renderCurrentWeekIndicator(container);
+    return;
+  }
+
+  const lbl = document.createElement('span');
+  lbl.className = 'text-muted small';
+  lbl.textContent = `Date: ${resolveQueryDate()}`;
+  container.appendChild(lbl);
+}
+
+// Sequence guard so a slow /weekly-tabs response for a previous symbol can't
+// clobber the tabs of the symbol the user has since switched to.
+let _weeklyTabsToken = 0;
+
+/**
+ * Show/populate the 4-tab weekly expiry toggle inside the Weekly GEX card.
+ * Only visible for stock symbols on the Weekly view. Tab definitions (labels,
+ * resolved expiry dates, and per-tab data availability) come from
+ * /api/gex/weekly-tabs — no expiry-date math is done in JavaScript.
+ */
+async function updateWeeklyTabToggle() {
+  const slot = document.getElementById('weekly-tab-toggle');
+  if (!slot) return;
+
+  const isStockWeekly = state.assetType === 'stock' && state.snapType === 'weekly';
+  slot.classList.toggle('d-none', !isStockWeekly);
+
+  if (!isStockWeekly) {
+    slot.innerHTML = '';
+    state.expiryDate = null;  // expiry tabs don't apply outside stock weekly
+    return;
+  }
+
+  const token = ++_weeklyTabsToken;
+  const symbol = state.symbol;
+
+  let tabs;
+  try {
+    const resp = await fetch(`/api/gex/weekly-tabs?symbol=${encodeURIComponent(symbol)}`);
+    if (!resp.ok) { slot.innerHTML = ''; return; }
+    tabs = (await resp.json()).tabs || [];
+  } catch (e) {
+    slot.innerHTML = '';
+    return;
+  }
+
+  // Bail if the user switched symbol/view while this request was in flight.
+  if (token !== _weeklyTabsToken || symbol !== state.symbol) return;
+
+  renderWeeklyTabs(slot, tabs);
+}
+
+function renderWeeklyTabs(slot, tabs) {
+  slot.innerHTML = '';
+
+  // Default selected tab: This Week (falls back to first tab if absent).
+  const known = tabs.map(t => t.expiry_date);
+  const requestedExpiry = state.expiryDate;
+  if (!known.includes(state.expiryDate)) {
+    const thisWeek = tabs.find(t => t.key === 'this') || tabs[0];
+    state.expiryDate = thisWeek ? thisWeek.expiry_date : null;
+    // A bad ?expiry= from the URL: silently reload the chart on the corrected
+    // default tab so the user never sees a broken/empty week.
+    if (requestedExpiry && requestedExpiry !== state.expiryDate) loadGexData();
+  }
+
+  const grp = document.createElement('div');
+  grp.className = 'd-flex flex-wrap gap-1 weekly-tab-toggle';
+  grp.setAttribute('role', 'group');
+
+  for (const t of tabs) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary rounded-pill';
+    btn.dataset.iso = t.expiry_date;
+    // Label is the actual expiry date (e.g. "Jun 27"); semantic name in tooltip.
+    btn.textContent = fmtTabDate(t.expiry_date);
+    btn.title = t.has_data ? t.label : `${t.label} — data not available yet`;
+    if (!t.has_data) btn.disabled = true;
+    if (t.expiry_date === state.expiryDate) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      state.expiryDate = t.expiry_date;
+      state.date = null;  // tab shows the latest available day for that expiry
+      grp.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('active', b.dataset.iso === t.expiry_date));
+      // Paid users also have the date picker below — a tab pick supersedes it.
+      const dateInput = document.getElementById('date-input');
+      if (dateInput) {
+        dateInput.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+      }
+      loadGexData();  // update the GEX chart ONLY — no page reload.
+      // NOTE: the parallel coordinates chart is intentionally NOT refreshed here.
+      // It always shows all N tracked weeks independently and must not react to
+      // the selected week tab (Module 04 — parallel coords decoupling).
+    });
+    grp.appendChild(btn);
+  }
+  slot.appendChild(grp);
+  syncUrl();  // reflect the resolved weekly expiry tab in the URL
+}
+
+/** Compact expiry-date label for the weekly tabs, e.g. "Jun 27". */
+function fmtTabDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T00:00:00');  // parse as local midnight (no TZ shift)
+  if (isNaN(d)) return String(iso).slice(0, 10);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Paid weekly date controls: a Mon–Fri strip for the current expiry week
+ * (each button sets trade_date to that specific day) plus a full date picker
+ * below it for picking past weeks.
+ */
+function renderPaidWeeklyControls(container) {
+  const today = todayISO();
+  if (!state.date) state.date = today;
+
+  // Day strip — Mon through Fri of the most recent trading week (never rolls
+  // forward past today, so the buttons are always selectable — see dayStripMonday).
+  const monDate = new Date(dayStripMonday() + 'T00:00:00');
+  const strip = document.createElement('div');
+  strip.className = 'btn-group w-100 mb-1';
+
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(monDate);
+    d.setDate(monDate.getDate() + i);
+    const iso = isoDate(d);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary';
+    btn.textContent = DAY_LABELS[i];
+    btn.title = iso;
+    btn.dataset.iso = iso;
+    if (iso > today) btn.disabled = true; // future days have no data yet
+    if (state.date === iso) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      state.date = iso;
+      state.dateExplicit = true;
+      // Picking an explicit trade_date supersedes the in-card 4-tab toggle.
+      state.expiryDate = null;
+      clearWeeklyTabToggleActive();
+      strip.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('active', b.dataset.iso === iso));
+      inp.value = iso;
+      reloadDashboard();
+    });
+    strip.appendChild(btn);
+  }
+  container.appendChild(strip);
+
+  // Full date picker for past weeks
+  const inp = document.createElement('input');
+  inp.type  = 'date';
+  inp.className = 'form-control form-control-sm bg-dark text-light border-secondary';
+  inp.id    = 'date-input';
+  inp.value = state.date;
+  inp.max   = today;
+  inp.addEventListener('change', () => {
+    state.date = inp.value;
+    state.dateExplicit = true;
+    // Picking an explicit trade_date supersedes the in-card 4-tab toggle.
+    state.expiryDate = null;
+    clearWeeklyTabToggleActive();
+    // Clear active state on strip buttons when user picks an arbitrary date
+    strip.querySelectorAll('button').forEach(b =>
+      b.classList.toggle('active', b.dataset.iso === inp.value));
+    reloadDashboard();
+  });
+  container.appendChild(inp);
+}
+
+/** Remove the active highlight from all in-card weekly-tab-toggle buttons. */
+function clearWeeklyTabToggleActive() {
+  document.querySelectorAll('#weekly-tab-toggle .btn').forEach(b =>
+    b.classList.remove('active'));
+}
+
+function todayISO() {
+  const zone = state.marketTimezone || 'America/Chicago';
+  const marketNow = new Date(new Date().toLocaleString('en-US', { timeZone: zone }));
+  return isoDate(marketNow);
+}
+
+// Compute the current and next week Monday (client-side approximation;
+// the server enforces the real window — this is just for the UI toggle labels)
+function weekWindow() {
+  const zone = state.marketTimezone || 'America/Chicago';
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: zone }));
+  const day = now.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daysToMon = day === 0 ? 1 : (8 - day) % 7 || 7;
+  const isRolled = (day === 5 && now.getHours() >= 21) || day === 6 || day === 0;
+
+  const base = new Date(now);
+  if (!isRolled) {
+    base.setDate(now.getDate() - (day === 0 ? 6 : day - 1)); // this Monday
+  } else {
+    base.setDate(now.getDate() + daysToMon); // next Monday
+  }
+  base.setHours(0, 0, 0, 0);
+
+  const nextBase = new Date(base);
+  nextBase.setDate(base.getDate() + 7);
+
+  return { currentMonday: isoDate(base), nextMonday: isoDate(nextBase) };
+}
+
+function isoDate(d) {
+  // Calendar controls are market-local labels. Converting local midnight to
+  // UTC moves an IST date back one day (for example Aug 31 became Aug 30).
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Monday of the most recent Mon–Fri trading week, anchored so every day in the
+ * strip is <= today (i.e. selectable). Unlike weekWindow(), this never rolls
+ * forward on weekends/after Friday close — on Sat/Sun it returns the Monday of
+ * the week that just ended, so the day buttons aren't all disabled as future dates.
+ */
+function dayStripMonday() {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const base = new Date(now);
+  if (day === 0)      base.setDate(now.getDate() - 6); // Sun → previous Monday
+  else if (day === 6) base.setDate(now.getDate() - 5); // Sat → previous Monday
+  else                base.setDate(now.getDate() - (day - 1)); // Mon–Fri → this Monday
+  base.setHours(0, 0, 0, 0);
+  return isoDate(base);
+}
+
+/** Map UI granularity to the date the API expects for that snapshot type. */
+function resolveQueryDate() {
+  if (IS_PAID) return state.date || todayISO();
+
+  if (state.snapType === 'weekly') {
+    // Free: omit explicit date so the API returns the latest available snapshot.
+    // Sending today's date triggers the same fallback path server-side.
+    return todayISO();
+  }
+
+  if (state.snapType === 'monthly') return todayISO();
+
+  return todayISO();
+}
+
+function shouldUseLatestWeeklySnapshot() {
+  return state.snapType === 'weekly' && (
+    !IS_PAID || (state.provider === 'zerodha' && !state.dateExplicit)
+  );
+}
+
+function syncResolvedWeeklyDate(body) {
+  if (state.provider !== 'zerodha' || state.snapType !== 'weekly'
+      || state.dateExplicit || !body?.data?.trade_date) return;
+
+  const resolvedDate = String(body.data.trade_date).slice(0, 10);
+  state.date = resolvedDate;
+  const input = document.getElementById('date-input');
+  if (input) input.value = resolvedDate;
+  document.querySelectorAll('#date-controls button[data-iso]').forEach(button =>
+    button.classList.toggle('active', button.dataset.iso === resolvedDate));
+}
+
+// ── GEX data fetch & render ────────────────────────────────────────────────
+async function _fetchGex(url) {
+  showChartLoading();
+  try {
+    const resp = await fetch(url);
+    const body = await resp.json();
+    if (!resp.ok) {
+      showNoData(body.error || 'Access denied.');
+      return null;
+    }
+    return body;
+  } catch (e) {
+    showNoData('Network error — please try again.');
+    return null;
+  } finally {
+    hideChartLoading();
+  }
+}
+
+function _renderGexBody(body, titleExtra) {
+  const hasStrikes = body.data && (body.data.gex_by_strike || []).length > 0;
+  if (!hasStrikes) {
+    showNoData('Data not available yet.', body.last_updated);
+    return false;
+  }
+  try {
+    hideNoData();
+    renderChart(body.data);
+    renderSummary(body.data);
+    updateLastUpdated(body.last_updated);
+    updateCardTimestamp('gex-last-updated', body.last_updated, state.snapType);
+    const base = `${state.symbol} — ${TYPE_LABELS[state.snapType] || state.snapType} GEX`;
+    document.getElementById('chart-title').textContent = titleExtra ? `${base} (${titleExtra})` : base;
+    return true;
+  } catch (e) {
+    console.error('Chart render error:', e);
+    showNoData('Could not render chart for this data.');
+    return false;
+  }
+}
+
+async function loadGexData() {
+  if (!state.symbol || !state.snapType) return;
+
+  let url;
+  if (state.assetType === 'stock' && state.snapType === 'weekly' && state.expiryDate) {
+    // Tab mode: expiry_date selects the week; omit date so the server returns
+    // that week's latest available trade_date snapshot.
+    url = `/api/gex?symbol=${state.symbol}&type=weekly&expiry_date=${state.expiryDate}`;
+  } else if (shouldUseLatestWeeklySnapshot()) {
+    // Default weekly view: omit the date so the server resolves the latest
+    // available snapshot. This is also required for Zerodha because the paid
+    // date control initializes to a calendar day that may not have a capture.
+    // Once the user explicitly picks a day, the exact trade_date is requested.
+    url = `/api/gex?symbol=${state.symbol}&type=weekly`;
+  } else {
+    const date = resolveQueryDate();
+    url = `/api/gex?symbol=${state.symbol}&type=${state.snapType}&date=${date}`;
+  }
+
+  const body = await _fetchGex(url);
+  if (!body) return;
+  syncResolvedWeeklyDate(body);
+  const ok = _renderGexBody(body);
+  if (ok) {
+    if (IS_PAID) loadTrendData();
+    loadWeeklyTrend();
+    loadMonthlyTrend();
+  }
+
+  if (state.snapType === '0dte') {
+    loadIntradaySnapshots();
+  } else {
+    state.pendingTimestamp = null;  // ts only applies to intraday
+    hideSnapshotPicker();
+  }
+  syncUrl();
+}
+
+// ── Intraday snapshot time-box picker ──────────────────────────────────────
+
+function isDuringMarketHours() {
+  const zone = state.marketTimezone || 'America/Chicago';
+  const nowMarket = new Date(new Date().toLocaleString('en-US', { timeZone: zone }));
+  const day = nowMarket.getDay(); // 0 = Sun … 6 = Sat
+  if (day === 0 || day === 6) return false;
+  const hour = nowMarket.getHours() + nowMarket.getMinutes() / 60;
+  if (state.provider === 'zerodha') {
+    return hour >= 9.3333 && hour < 15.1667; // 09:20–15:10 IST
+  }
+  return hour >= 8.75 && hour < 14.9167; // 08:45–14:55 CT
+}
+
+function fmtHHMMLabel(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+async function loadIntradaySnapshots() {
+  if (!state.symbol) return;
+
+  // Only send an explicit date when the paid date picker has actually been
+  // touched. Otherwise let the server resolve the latest trading day with
+  // data — outside market hours / on a weekend that's the prior trading
+  // day's boxes, not an empty "today" (browser-local "today" can also be a
+  // day off from the server's Central Time date near midnight).
+  const requestedDate = (IS_PAID && state.dateExplicit && state.date) ? state.date : null;
+
+  if (state.symbol !== state.intradaySnapshotSymbol || requestedDate !== state.intradaySnapshotRequestedDate) {
+    // Symbol or requested date changed since the last fetch — reset to default (latest).
+    state.selectedTimestamp = null;
+    state.userSelectedSnapshot = false;
+  }
+  state.intradaySnapshotSymbol = state.symbol;
+  state.intradaySnapshotRequestedDate = requestedDate;
+
+  let resp, body;
+  try {
+    const qs = new URLSearchParams({ symbol: state.symbol });
+    if (requestedDate) qs.set('date', requestedDate);
+    resp = await fetch(`/api/gex/intraday-snapshots?${qs.toString()}`);
+    body = await resp.json();
+  } catch (e) {
+    hideSnapshotPicker();
+    return;
+  }
+
+  if (!resp.ok || !body.snapshots || body.snapshots.length === 0) {
+    state.intradaySnapshots = [];
+    hideSnapshotPicker();
+    return;
+  }
+
+  state.intradaySnapshotDate = body.date; // server-resolved actual trade_date
+
+  const prevLatest = state.intradaySnapshots[0]?.timestamp;
+  const newSnapshots = body.snapshots; // descending — latest first
+  const isNewArrival = !!prevLatest && newSnapshots[0].timestamp !== prevLatest;
+
+  state.intradaySnapshots = newSnapshots;
+
+  // One-shot restore from a URL ?ts= param: honor it only if that box exists,
+  // otherwise fall through to the default (latest) — a bad ts is not an error.
+  if (state.pendingTimestamp) {
+    const wanted = state.pendingTimestamp;
+    state.pendingTimestamp = null;
+    if (newSnapshots.some(s => s.timestamp === wanted)) {
+      state.selectedTimestamp = wanted;
+      state.userSelectedSnapshot = wanted !== newSnapshots[0].timestamp;
+      renderSnapshotPicker();
+      startSnapshotPolling();
+      const url = `/api/gex?symbol=${encodeURIComponent(state.symbol)}&type=0dte&date=${state.intradaySnapshotDate}&timestamp=${encodeURIComponent(wanted)}`;
+      const b = await _fetchGex(url);
+      if (b) _renderGexBody(b, fmtHHMMLabel(wanted));
+      syncUrl();
+      return;
+    }
+  }
+
+  if (!state.userSelectedSnapshot) {
+    state.selectedTimestamp = newSnapshots[0].timestamp;
+  }
+
+  renderSnapshotPicker({ newArrival: isNewArrival && state.userSelectedSnapshot });
+  startSnapshotPolling();
+
+  // Auto-refresh the chart to the new latest snapshot, unless the user has
+  // manually pinned an earlier box — their selection is preserved either way.
+  if (isNewArrival && !state.userSelectedSnapshot) {
+    const url = `/api/gex?symbol=${encodeURIComponent(state.symbol)}&type=0dte&date=${state.intradaySnapshotDate}&timestamp=${encodeURIComponent(state.selectedTimestamp)}`;
+    const freshBody = await _fetchGex(url);
+    if (freshBody) _renderGexBody(freshBody, fmtHHMMLabel(state.selectedTimestamp));
+  }
+  syncUrl();  // reflect the now-selected snapshot timestamp in the URL
+}
+
+function renderSnapshotPicker(opts = {}) {
+  const wrap = document.getElementById('intraday-snapshot-picker');
+  const row = document.getElementById('intraday-snapshot-row');
+  if (!wrap || !row) return;
+
+  const snapshots = state.intradaySnapshots;
+  if (!snapshots || snapshots.length === 0) {
+    wrap.classList.add('d-none');
+    return;
+  }
+
+  row.innerHTML = '';
+  // API returns latest-first; display oldest → newest, left → right.
+  const chronological = [...snapshots].reverse();
+  chronological.forEach((snap, idx) => {
+    const isLatest = idx === chronological.length - 1;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn snapshot-time-btn' + (snap.timestamp === state.selectedTimestamp ? ' active' : '');
+    btn.textContent = fmtHHMMLabel(snap.timestamp);
+    if (snap.net_gex != null) btn.title = `Net GEX ${fmtGex(snap.net_gex)}`;
+    if (isLatest && opts.newArrival) {
+      const dot = document.createElement('span');
+      dot.className = 'snapshot-new-dot';
+      dot.title = 'New snapshot available';
+      btn.appendChild(dot);
+    }
+    btn.addEventListener('click', () => selectIntradaySnapshot(snap.timestamp));
+    row.appendChild(btn);
+  });
+
+  wrap.classList.remove('d-none');
+}
+
+async function selectIntradaySnapshot(ts) {
+  state.selectedTimestamp = ts;
+  // Clicking the latest box re-enables auto-follow; any earlier box pins the selection.
+  state.userSelectedSnapshot = ts !== state.intradaySnapshots[0]?.timestamp;
+  renderSnapshotPicker();
+
+  const date = state.intradaySnapshotDate || resolveQueryDate();
+  const url = `/api/gex?symbol=${encodeURIComponent(state.symbol)}&type=0dte&date=${date}&timestamp=${encodeURIComponent(ts)}`;
+  const body = await _fetchGex(url);
+  if (!body) return;
+  _renderGexBody(body, fmtHHMMLabel(ts));
+  syncUrl();
+}
+
+function hideSnapshotPicker() {
+  document.getElementById('intraday-snapshot-picker')?.classList.add('d-none');
+  state.intradaySnapshots = [];
+  state.intradaySnapshotSymbol = null;
+  state.intradaySnapshotRequestedDate = null;
+  state.intradaySnapshotDate = null;
+  stopSnapshotPolling();
+}
+
+function startSnapshotPolling() {
+  stopSnapshotPolling();
+  if (state.snapType !== '0dte' || !isDuringMarketHours()) return;
+  state.intradayPollTimer = setInterval(() => {
+    if (state.snapType === '0dte') {
+      loadIntradaySnapshots();
+    } else {
+      stopSnapshotPolling();
+    }
+  }, GEX_0DTE_INTERVAL_MINUTES * 60000);
+}
+
+function stopSnapshotPolling() {
+  if (state.intradayPollTimer) {
+    clearInterval(state.intradayPollTimer);
+    state.intradayPollTimer = null;
+  }
+}
+
+function showNoData(msg, lastUpdated) {
+  const alert = document.getElementById('no-data-alert');
+  alert.querySelector('strong').textContent = msg;
+  const lu = document.getElementById('no-data-last-updated');
+  lu.textContent = lastUpdated ? ` Last pipeline run: ${fmtTimestamp(lastUpdated)}` : '';
+  alert.classList.remove('d-none');
+  document.getElementById('gex-chart').classList.add('d-none');
+  document.getElementById('chart-empty').classList.remove('d-none');
+  document.getElementById('summary-content').classList.add('d-none');
+  document.getElementById('summary-empty').classList.remove('d-none');
+}
+
+function hideNoData() {
+  document.getElementById('no-data-alert').classList.add('d-none');
+  document.getElementById('gex-chart').classList.remove('d-none');
+  document.getElementById('chart-empty').classList.add('d-none');
+  document.getElementById('summary-content').classList.remove('d-none');
+  document.getElementById('summary-empty').classList.add('d-none');
+}
+
+function showChartLoading() {
+  document.getElementById('gex-chart-loading')?.classList.remove('d-none');
+}
+
+function hideChartLoading() {
+  document.getElementById('gex-chart-loading')?.classList.add('d-none');
+}
+
+// ── GEX bar chart helpers ──────────────────────────────────────────────────
+
+// Returns the index of the strike label closest to a given price value.
+function _closestStrikeIdx(labels, price) {
+  if (price == null || !labels.length) return -1;
+  let best = -1, bestDist = Infinity;
+  labels.forEach((l, i) => {
+    const d = Math.abs(parseFloat(l) - price);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return best;
+}
+
+function _spotAnnotation(labels, spot) {
+  const idx = _closestStrikeIdx(labels, spot);
+  if (idx < 0) return null;
+  return {
+    type: 'line', scaleID: 'x', value: idx,
+    borderColor: '#facc15', borderWidth: 2, borderDash: [4, 4],
+    label: {
+      content: `Spot ${spot != null ? fmtCurrencyLevel(spot) : ''}`,
+      display: true, position: { y: 'start' }, rotation: -90,
+      backgroundColor: '#854d0e', color: '#fef08a', font: { size: 11 },
+    },
+  };
+}
+
+// ── GEX bar chart ──────────────────────────────────────────────────────────
+function renderChart(data) {
+  const rows     = data.gex_by_strike || [];
+  const labels   = rows.map(r => String(r.strike));
+  const callData = rows.map(r => r.call_gex || 0);
+  const putData  = rows.map(r => r.put_gex  || 0);
+
+  const callWall = data.call_wall;
+  const putWall  = data.put_wall;
+  const callWallIdx = labels.indexOf(String(callWall));
+  const putWallIdx  = labels.indexOf(String(putWall));
+
+  const annotations = {};
+  if (callWallIdx >= 0) {
+    annotations.callWallLine = {
+      type: 'line', scaleID: 'x', value: callWallIdx,
+      borderColor: '#22c55e', borderWidth: 2, borderDash: [6,3],
+      label: { content: `Call Wall ${callWall}`, display: true, position: { y: 'start' }, rotation: -90,
+               backgroundColor: '#22c55e', color: '#fff', font: { size: 11 } },
+    };
+  }
+  if (putWallIdx >= 0) {
+    annotations.putWallLine = {
+      type: 'line', scaleID: 'x', value: putWallIdx,
+      borderColor: '#ef4444', borderWidth: 2, borderDash: [6,3],
+      label: { content: `Put Wall ${putWall}`, display: true, position: { y: 'start' }, rotation: -90,
+               backgroundColor: '#ef4444', color: '#fff', font: { size: 11 } },
+    };
+  }
+  const spotLine = _spotAnnotation(labels, data.spot_price);
+  if (spotLine) annotations.spotLine = spotLine;
+
+  const cfg = {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Call GEX', data: callData, backgroundColor: 'rgba(34,197,94,0.75)',
+          borderColor: 'rgba(34,197,94,1)', borderWidth: 1 },
+        { label: 'Put GEX',  data: putData,  backgroundColor: 'rgba(239,68,68,0.75)',
+          borderColor: 'rgba(239,68,68,1)',  borderWidth: 1 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#9ca3af', maxRotation: 60, font: { size: 10 } },
+          grid:   { color: 'rgba(255,255,255,0.05)' },
+        },
+        y: {
+          stacked: true,
+          ticks: { color: '#9ca3af', callback: v => fmtGex(v) },
+          grid:  { color: 'rgba(255,255,255,0.08)' },
+        },
+      },
+      plugins: {
+        legend: { labels: { color: '#d1d5db', boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmtGex(ctx.parsed.y)}`,
+          },
+        },
+        annotation: { annotations },
+      },
+    },
+  };
+
+  const canvas = document.getElementById('gex-chart');
+  if (gexChart) gexChart.destroy();
+  gexChart = new Chart(canvas, cfg);
+}
+
+// ── Summary panel ──────────────────────────────────────────────────────────
+function renderSummary(data) {
+  document.getElementById('s-net-gex').textContent  = fmtGex(data.net_gex);
+  document.getElementById('s-call-wall').textContent = fmtCurrencyLevel(data.call_wall);
+  document.getElementById('s-put-wall').textContent  = fmtCurrencyLevel(data.put_wall);
+
+  const spot = data.spot_price;
+  document.getElementById('s-spot').textContent = fmtCurrencyLevel(spot);
+  document.getElementById('spot-badge').textContent = spot != null ? `Spot ${fmtCurrencyLevel(spot)}` : '';
+
+  const asOf = data.as_of || data.created_at;
+  document.getElementById('s-as-of').textContent =
+    asOf ? `As of ${fmtTimestamp(asOf)}` : '';
+}
+
+// ── Rolling 5-day trend ────────────────────────────────────────────────────
+async function loadTrendData() {
+  if (!IS_PAID) return;
+  const resp = await fetch(`/api/gex/rolling?symbol=${state.symbol}`);
+  if (!resp.ok) return;
+  const body = await resp.json();
+  if (!body.series || body.series.length === 0) return;
+
+  updateCardTimestamp('trend-last-updated', body.last_updated, 'rolling');
+
+  const labels = body.series.map(r => (r.trade_date || '').slice(0,10));
+  const netGex = body.series.map(r => r.net_gex || 0);
+
+  const cfg = {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Net GEX', data: netGex,
+        borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.15)',
+        fill: true, tension: 0.35, pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#9ca3af', callback: v => fmtGex(v) }, grid: { color: 'rgba(255,255,255,0.06)' } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  };
+
+  const canvas = document.getElementById('trend-chart');
+  if (!canvas) return;
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(canvas, cfg);
+}
+
+// ── Parallel coordinates (paid only) ─────────────────────────────────────
+async function loadGreeks(optionType) {
+  if (!IS_PAID || !state.symbol || !state.snapType) return;
+  const loading = document.getElementById('greeks-loading');
+  const empty   = document.getElementById('greeks-empty');
+  const chartEl = document.getElementById('greeks-chart');
+  if (!loading || !empty || !chartEl) return;
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  chartEl.innerHTML = '';
+
+  let url = `/api/gex/parallel-chart?symbol=${encodeURIComponent(state.symbol)}&type=${encodeURIComponent(state.snapType)}`;
+  if (state.assetType === 'stock' && (state.snapType === 'weekly' || state.snapType === 'monthly')) {
+    // Stocks: parallel coordinates span ALL N tracked weeks (source=weekly) or
+    // M tracked cycles (source=monthly) from gex_weekly / gex_monthly_opex — its
+    // own independent fetch. It deliberately does NOT read state.expiryDate: the
+    // Weekly GEX card's 4-tab week toggle must have no effect on this chart
+    // (Module 04 — parallel coords decoupling).
+    url += `&source=${encodeURIComponent(state.snapType)}`;
+  } else if (!shouldUseLatestWeeklySnapshot()) {
+    // Index symbols: unchanged — sources from the raw multi-expiry chain pull.
+    url += `&date=${encodeURIComponent(resolveQueryDate())}`;
+  }
+  if (optionType) url += `&option_type=${optionType}`;
+
+  try {
+    const resp = await fetch(url);
+    const body = await resp.json();
+    loading.classList.add('d-none');
+    if (!resp.ok || !body.chart) {
+      empty.textContent = body.message || body.error || 'Parallel coordinates not available.';
+      empty.classList.remove('d-none');
+      return;
+    }
+    if (body.last_updated) updateCardTimestamp('greeks-last-updated', body.last_updated, state.snapType);
+    const layout = Object.assign({}, body.chart.layout, { autosize: true });
+    delete layout.width;
+    delete layout.height;
+    Plotly.newPlot(chartEl, body.chart.data, layout, { responsive: true, displayModeBar: false })
+      .then(() => Plotly.Plots.resize(chartEl));
+  } catch (e) {
+    loading.classList.add('d-none');
+    empty.textContent = 'Could not load parallel coordinates.';
+    empty.classList.remove('d-none');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const filterBar = document.getElementById('greeks-filter');
+  if (filterBar) {
+    filterBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-filter]');
+      if (!btn) return;
+      filterBar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _greeksFilter = btn.dataset.filter;
+      loadGreeks(_greeksFilter);
+    });
+  }
+});
+
+// ── Term Structure card ────────────────────────────────────────────────────
+let _tsViewMode = 'chart'; // 'chart' | 'table'
+
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('ts-view-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-ts-view]');
+      if (!btn) return;
+      _tsViewMode = btn.dataset.tsView;
+      toggle.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('active', b.dataset.tsView === _tsViewMode));
+      // Re-render panels with new view mode if data already loaded
+      const panels = document.getElementById('ts-panels');
+      if (panels && panels._tsData) renderTsPanels(panels._tsData);
+    });
+  }
+});
+
+async function loadTermStructure() {
+  if (!IS_PAID) return;
+
+  const loading = document.getElementById('ts-loading');
+  const empty   = document.getElementById('ts-empty');
+  const panels  = document.getElementById('ts-panels');
+  const subtitle = document.getElementById('ts-subtitle');
+  if (!loading || !empty || !panels) return;
+
+  const isIndex = TERM_STRUCTURE_SYMBOLS.includes(state.symbol);
+  if (!isIndex) {
+    panels.classList.add('d-none');
+    empty.textContent = 'EOD GEX Analysis is only available for supported index symbols.';
+    empty.classList.remove('d-none');
+    return;
+  }
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  panels.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/gex/term-structure?symbol=${state.symbol}`);
+    const body = await resp.json();
+    if (!resp.ok) {
+      empty.textContent = body.error || 'Term structure unavailable.';
+      empty.classList.remove('d-none');
+      return;
+    }
+
+    const ts = body.term_structure || [];
+    if (!ts.length) {
+      empty.textContent = body.message || 'No term structure data available yet.';
+      empty.classList.remove('d-none');
+      return;
+    }
+
+    if (body.last_updated) {
+      subtitle.textContent = `as of ${fmtTimestamp(body.last_updated)}`;
+    }
+
+    panels._tsData = ts;
+    renderTsPanels(ts);
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    empty.textContent = 'Network error loading term structure.';
+    empty.classList.remove('d-none');
+  } finally {
+    loading.classList.add('d-none');
+  }
+}
+
+function renderTsPanels(ts) {
+  const panels = document.getElementById('ts-panels');
+  if (!panels) return;
+  panels.innerHTML = '';
+
+  for (const entry of ts) {
+    const expLabel = fmtExpiry(entry.expiry_date);
+    const col = document.createElement('div');
+    col.className = 'col-12 col-md-4';
+
+    if (_tsViewMode === 'table') {
+      col.innerHTML = buildTsTable(entry, expLabel);
+    } else {
+      col.innerHTML = `
+        <div class="card bg-dark border-secondary h-100">
+          <div class="card-header py-2 border-secondary">
+            <span class="fw-semibold">${expLabel}</span>
+            <span class="badge bg-secondary ms-2 small">${state.provider === 'zerodha' ? 'E'+entry.expiry_index : entry.trading_days_out+'T'}</span>
+          </div>
+          <div class="card-body p-2">
+            <div class="mb-2 small text-muted">
+              Net GEX: <strong class="${(entry.net_gex||0)>=0?'text-success':'text-danger'}">${fmtGex(entry.net_gex)}</strong>
+              &nbsp;|&nbsp; Call Wall: <strong class="text-success">${fmtCurrencyLevel(entry.call_wall)}</strong>
+              &nbsp;|&nbsp; Put Wall: <strong class="text-danger">${fmtCurrencyLevel(entry.put_wall)}</strong>
+            </div>
+            <div id="ts-chart-${entry.trading_days_out}" style="min-height:220px;"></div>
+          </div>
+        </div>`;
+    }
+
+    panels.appendChild(col);
+  }
+
+  panels.classList.remove('d-none');
+
+  if (_tsViewMode === 'chart') {
+    for (const entry of ts) {
+      const el = document.getElementById(`ts-chart-${entry.trading_days_out}`);
+      if (el) renderTsChart(el, entry);
+    }
+  }
+}
+
+function buildTsTable(entry, expLabel) {
+  const rows = (entry.gex_by_strike || []).map(r =>
+    `<tr>
+      <td>${r.strike}</td>
+      <td class="text-end text-success">${fmtGex(r.call_gex)}</td>
+      <td class="text-end text-danger">${fmtGex(r.put_gex)}</td>
+      <td class="text-end ${(r.call_gex+r.put_gex)>=0?'text-success':'text-danger'}">${fmtGex(r.call_gex+r.put_gex)}</td>
+    </tr>`
+  ).join('');
+  return `
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header py-2 border-secondary">
+        <span class="fw-semibold">${expLabel}</span>
+        <span class="badge bg-secondary ms-2 small">${state.provider === 'zerodha' ? 'E'+entry.expiry_index : entry.trading_days_out+'T'}</span>
+      </div>
+      <div class="card-body p-2">
+        <div class="mb-2 small text-muted">
+          Net GEX: <strong class="${(entry.net_gex||0)>=0?'text-success':'text-danger'}">${fmtGex(entry.net_gex)}</strong>
+          &nbsp;|&nbsp; Call Wall: <strong class="text-success">${fmtCurrencyLevel(entry.call_wall)}</strong>
+          &nbsp;|&nbsp; Put Wall: <strong class="text-danger">${fmtCurrencyLevel(entry.put_wall)}</strong>
+        </div>
+        <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
+          <table class="table table-sm table-dark table-hover mb-0">
+            <thead class="sticky-top"><tr>
+              <th>Strike</th><th class="text-end">Call GEX</th><th class="text-end">Put GEX</th><th class="text-end">Net</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTsChart(el, entry) {
+  if (typeof Plotly === 'undefined') return;
+  const rows = entry.gex_by_strike || [];
+  const strikes = rows.map(r => String(r.strike));
+  const callGex = rows.map(r => r.call_gex || 0);
+  const putGex  = rows.map(r => r.put_gex  || 0);
+  const layout = {
+    template: 'plotly_dark',
+    paper_bgcolor: '#161922', plot_bgcolor: '#161922',
+    barmode: 'overlay',
+    xaxis: { title: 'Strike', tickangle: -45, tickfont: { size: 9 } },
+    yaxis: { title: 'GEX', tickformat: '~s' },
+    margin: { l: 48, r: 8, t: 8, b: 60 },
+    legend: { orientation: 'h', y: -0.25, font: { size: 10 } },
+    autosize: true,
+  };
+  const traces = [
+    { type: 'bar', name: 'Call GEX', x: strikes, y: callGex,
+      marker: { color: 'rgba(34,197,94,0.75)' } },
+    { type: 'bar', name: 'Put GEX',  x: strikes, y: putGex,
+      marker: { color: 'rgba(239,68,68,0.75)' } },
+  ];
+  Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: false })
+    .then(() => Plotly.Plots.resize(el));
+}
+
+function fmtExpiry(isoOrDate) {
+  if (!isoOrDate) return '—';
+  const d = new Date(isoOrDate);
+  if (isNaN(d)) return String(isoOrDate).slice(0, 10);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Formatters ─────────────────────────────────────────────────────────────
+function fmtGex(v) {
+  if (v == null) return '—';
+  if (state.currency === 'INR' && state.displayUnit === 'crore') {
+    return '₹' + (v / 1e7).toFixed(2) + ' Cr';
+  }
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (abs >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return v.toFixed(2);
+}
+
+function fmtLevel(v) {
+  if (v == null) return '—';
+  return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function fmtCurrencyLevel(v) {
+  if (v == null) return '—';
+  const symbol = state.currency === 'INR' ? '₹' : '$';
+  return symbol + fmtLevel(v);
+}
+
+function fmtTimestamp(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const zone = state.marketTimezone || 'America/Chicago';
+  const suffix = zone === 'Asia/Kolkata' ? ' IST' : ' CT';
+  return isNaN(d) ? iso : d.toLocaleString('en-US', { timeZone: zone }) + suffix;
+}
+
+function updateLastUpdated(ts) {
+  const el = document.getElementById('last-updated');
+  el.textContent = ts ? `Updated ${fmtTimestamp(ts)}` : '';
+}
+
+/**
+ * Set a per-card "last updated" span and apply a stale warning if the data
+ * is older than expected for the current time of day.
+ * snapType: '0dte' | 'intraday' | 'weekly' | 'monthly' | 'rolling' | 'eod'
+ */
+function updateCardTimestamp(elId, ts, snapType) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!ts) { el.textContent = ''; el.removeAttribute('title'); return; }
+
+  const d = new Date(ts);
+  if (isNaN(d)) { el.textContent = ''; return; }
+
+  const ageMs  = Date.now() - d.getTime();
+  const ageMin = ageMs / 60000;
+
+  // Stale threshold: intraday data during market hours (8:30–15:05 local proxy)
+  // expects a refresh every ~15 min; anything >30 min old is worth flagging.
+  // EOD / rolling / weekly / monthly are expected to be from earlier — not stale.
+  const zone = state.marketTimezone || 'America/Chicago';
+  const nowMarket = new Date(new Date().toLocaleString('en-US', { timeZone: zone }));
+  const hour = nowMarket.getHours() + nowMarket.getMinutes() / 60;
+  const isDuringIntraday = state.provider === 'zerodha'
+    ? hour >= 9.3333 && hour < 15.1667
+    : hour >= 8.5 && hour < 15.1;
+  const isIntradayType = snapType === '0dte' || snapType === 'intraday';
+  const isStale = isIntradayType && isDuringIntraday && ageMin > 30;
+
+  el.textContent = isStale
+    ? `⚠ Updated ${fmtTimestamp(ts)}`
+    : `Updated ${fmtTimestamp(ts)}`;
+  el.style.color = isStale ? '#f59e0b' : '';  // amber warning colour
+  el.title = isStale ? 'Data may be stale — pipeline may not have run recently' : '';
+}
+
+const OHLCV_DAYS = 45;
+
+// ── Daily OHLCV card ───────────────────────────────────────────────────────
+function initOhlcvCardTabs() {
+  const card = document.getElementById('ohlcv-card');
+  if (!card) return;
+
+  const links = card.querySelectorAll('.ohlcv-card-tabs .nav-link[data-ohlcv-target]');
+  const panes = card.querySelectorAll('.ohlcv-card-tab-content .ohlcv-tab-pane');
+
+  links.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = link.getAttribute('data-ohlcv-target');
+      if (!target) return;
+
+      links.forEach(l => {
+        l.classList.remove('active');
+        l.setAttribute('aria-selected', 'false');
+      });
+      panes.forEach(p => p.classList.remove('show', 'active'));
+
+      link.classList.add('active');
+      link.setAttribute('aria-selected', 'true');
+      const pane = card.querySelector(target);
+      if (pane) {
+        pane.classList.add('show', 'active');
+        if (target === '#ohlcv-pane-chart') {
+          requestAnimationFrame(resizeOhlcvChart);
+        }
+      }
+    });
+  });
+}
+
+function fmtPrice(v) {
+  if (v == null || isNaN(v)) return '—';
+  return Number(v).toFixed(2);
+}
+
+function renderOhlcvTable(bars) {
+  const tbody = document.getElementById('ohlcv-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = bars.slice().reverse().map(bar => {
+    const chg = bar.close - bar.open;
+    const chgPct = bar.open ? (chg / bar.open) * 100 : 0;
+    const chgClass = chg >= 0 ? 'text-success' : 'text-danger';
+    const chgSign = chg >= 0 ? '+' : '';
+    return `<tr>
+      <td>${bar.date}</td>
+      <td class="text-end">${fmtPrice(bar.open)}</td>
+      <td class="text-end">${fmtPrice(bar.high)}</td>
+      <td class="text-end">${fmtPrice(bar.low)}</td>
+      <td class="text-end ${chgClass}">${fmtPrice(bar.close)}</td>
+      <td class="text-end">${Number(bar.volume).toLocaleString()}</td>
+      <td class="text-end ${chgClass}">${chgSign}${fmtPrice(chg)} (${chgSign}${chgPct.toFixed(2)}%)</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderOhlcvChart(bars, symbol) {
+  const el = document.getElementById('ohlcv-chart');
+  if (!el || typeof Plotly === 'undefined') return;
+
+  const dates  = bars.map(b => b.date);
+  const colors = bars.map(b => (b.close >= b.open ? 'rgba(34,197,94,0.55)' : 'rgba(239,68,68,0.55)'));
+
+  const candlestick = {
+    type: 'candlestick',
+    x: dates,
+    open: bars.map(b => b.open),
+    high: bars.map(b => b.high),
+    low: bars.map(b => b.low),
+    close: bars.map(b => b.close),
+    increasing: { line: { color: '#22c55e', width: 1 }, fillcolor: '#22c55e' },
+    decreasing: { line: { color: '#ef4444', width: 1 }, fillcolor: '#ef4444' },
+    name: symbol,
+    xaxis: 'x',
+    yaxis: 'y',
+  };
+
+  const volume = {
+    type: 'bar',
+    x: dates,
+    y: bars.map(b => b.volume),
+    marker: { color: colors },
+    name: 'Volume',
+    xaxis: 'x',
+    yaxis: 'y2',
+    hovertemplate: 'Volume: %{y:,}<extra></extra>',
+  };
+
+  const layout = {
+    template: 'plotly_dark',
+    title: { text: `${symbol} — Daily Candlesticks`, x: 0, xanchor: 'left' },
+    paper_bgcolor: '#161922',
+    plot_bgcolor: '#161922',
+    xaxis: {
+      rangeslider: { visible: false },
+      type: 'category',
+      tickangle: -45,
+    },
+    yaxis: {
+      title: 'Price',
+      domain: [0.28, 1],
+      tickformat: '.2f',
+    },
+    yaxis2: {
+      title: 'Volume',
+      domain: [0, 0.22],
+      tickformat: '~s',
+    },
+    margin: { l: 56, r: 16, t: 48, b: 56 },
+    showlegend: false,
+    autosize: true,
+    hovermode: 'x unified',
+  };
+
+  Plotly.newPlot(el, [candlestick, volume], layout, { responsive: true, displayModeBar: false })
+    .then(() => Plotly.Plots.resize(el));
+}
+
+function resizeOhlcvChart() {
+  const el = document.getElementById('ohlcv-chart');
+  if (el && el.querySelector('.js-plotly-plot')) Plotly.Plots.resize(el);
+}
+
+async function loadOhlcv() {
+  const loading = document.getElementById('ohlcv-loading');
+  const empty   = document.getElementById('ohlcv-empty');
+  const content = document.getElementById('ohlcv-content');
+
+  if (ohlcvAbort) ohlcvAbort.abort();
+  ohlcvAbort = new AbortController();
+  ohlcvBars = null;
+
+  if (!state.symbol) {
+    loading.classList.add('d-none');
+    empty.classList.remove('d-none');
+    content.classList.add('d-none');
+    empty.textContent = 'Select a symbol above to load price history.';
+    return;
+  }
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  content.classList.add('d-none');
+  const tbody = document.getElementById('ohlcv-tbody');
+  if (tbody) tbody.innerHTML = '';
+
+  document.getElementById('ohlcv-title').textContent = `${state.symbol} — Price History`;
+
+  const url = `/api/ohlcv?symbol=${state.symbol}&days=${OHLCV_DAYS}`;
+
+  try {
+    const resp = await fetch(url, { signal: ohlcvAbort.signal });
+    const body = await resp.json();
+    if (!resp.ok) {
+      empty.textContent = body.error || 'Could not load OHLCV data.';
+      empty.classList.remove('d-none');
+      return;
+    }
+
+    if (!body.bars || body.bars.length === 0) {
+      empty.textContent = body.message || 'No OHLCV data available for this symbol.';
+      empty.classList.remove('d-none');
+      return;
+    }
+
+    ohlcvBars = body.bars;
+    document.getElementById('ohlcv-subtitle').textContent =
+      `Last ${body.bars.length} trading day${body.bars.length > 1 ? 's' : ''}`;
+    const sourceNote = document.getElementById('ohlcv-source-note');
+    if (sourceNote) {
+      sourceNote.textContent = body.source === 'zerodha'
+        ? 'Daily bars via Zerodha Kite Connect.'
+        : 'Daily bars via yfinance (may be delayed).';
+    }
+
+    renderOhlcvChart(body.bars, state.symbol);
+    renderOhlcvTable(body.bars);
+    content.classList.remove('d-none');
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    console.error('OHLCV load error:', e);
+    empty.textContent = 'Could not load OHLCV data.';
+    empty.classList.remove('d-none');
+  } finally {
+    loading.classList.add('d-none');
+  }
+}
+
+window.addEventListener('resize', () => {
+  clearTimeout(window._ohlcvResizeTimer);
+  window._ohlcvResizeTimer = setTimeout(() => {
+    resizeOhlcvChart();
+  }, 150);
+});
+
+// ── Weekly GEX Forward Trend ──────────────────────────────────────────────
+let _weeklyTrendChart = null;
+
+async function loadWeeklyTrend() {
+  if (!state.symbol) return;
+  const loading = document.getElementById('weekly-trend-loading');
+  const empty   = document.getElementById('weekly-trend-empty');
+  const content = document.getElementById('weekly-trend-content');
+  const tsEl    = document.getElementById('weekly-trend-last-updated');
+  if (!loading || !empty || !content) return;
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  content.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/gex/weekly-trend?symbol=${encodeURIComponent(state.symbol)}`);
+    loading.classList.add('d-none');
+    if (!resp.ok) { empty.classList.remove('d-none'); return; }
+    const body = await resp.json();
+    const weeks = body.weeks || [];
+    if (!weeks.length) { empty.classList.remove('d-none'); return; }
+
+    if (tsEl && body.last_updated) updateCardTimestamp('weekly-trend-last-updated', body.last_updated, 'weekly');
+
+    const labels  = weeks.map(w => (w.expiry_date || '').slice(0, 10));
+    const netGex  = weeks.map(w => w.net_gex || 0);
+    const callWall = weeks.map(w => w.call_wall || null);
+    const putWall  = weeks.map(w => w.put_wall  || null);
+
+    const canvas = document.getElementById('weekly-trend-chart');
+    if (!canvas) return;
+    if (_weeklyTrendChart) _weeklyTrendChart.destroy();
+    _weeklyTrendChart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Net GEX', data: netGex, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.15)', fill: true, tension: 0.35, pointRadius: 3 },
+          { label: 'Call Wall', data: callWall, borderColor: '#22c55e', borderDash: [4,3], pointRadius: 2, fill: false, tension: 0.2 },
+          { label: 'Put Wall',  data: putWall,  borderColor: '#ef4444', borderDash: [4,3], pointRadius: 2, fill: false, tension: 0.2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#9ca3af', callback: v => fmtGex(v) }, grid: { color: 'rgba(255,255,255,0.06)' } },
+        },
+        plugins: { legend: { display: true, labels: { color: '#9ca3af', boxWidth: 12, font: { size: 10 } } } },
+      },
+    });
+    content.classList.remove('d-none');
+  } catch (_) {
+    loading.classList.add('d-none');
+    empty.classList.remove('d-none');
+  }
+}
+
+// ── Monthly OPEX Forward Trend ────────────────────────────────────────────
+let _monthlyTrendChart = null;
+
+async function loadMonthlyTrend() {
+  if (!state.symbol) return;
+  const loading = document.getElementById('monthly-trend-loading');
+  const empty   = document.getElementById('monthly-trend-empty');
+  const content = document.getElementById('monthly-trend-content');
+  const tsEl    = document.getElementById('monthly-trend-last-updated');
+  if (!loading || !empty || !content) return;
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  content.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/gex/monthly-trend?symbol=${encodeURIComponent(state.symbol)}`);
+    loading.classList.add('d-none');
+    if (!resp.ok) { empty.classList.remove('d-none'); return; }
+    const body = await resp.json();
+    const cycles = body.cycles || [];
+    if (!cycles.length) { empty.classList.remove('d-none'); return; }
+
+    if (tsEl && body.last_updated) updateCardTimestamp('monthly-trend-last-updated', body.last_updated, 'monthly');
+
+    const labels  = cycles.map(c => (c.expiry_date || '').slice(0, 10));
+    const netGex  = cycles.map(c => c.net_gex || 0);
+    const callWall = cycles.map(c => c.call_wall || null);
+    const putWall  = cycles.map(c => c.put_wall  || null);
+
+    const canvas = document.getElementById('monthly-trend-chart');
+    if (!canvas) return;
+    if (_monthlyTrendChart) _monthlyTrendChart.destroy();
+    _monthlyTrendChart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Net GEX', data: netGex, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)', fill: true, tension: 0.35, pointRadius: 4 },
+          { label: 'Call Wall', data: callWall, borderColor: '#22c55e', borderDash: [4,3], pointRadius: 2, fill: false, tension: 0.2 },
+          { label: 'Put Wall',  data: putWall,  borderColor: '#ef4444', borderDash: [4,3], pointRadius: 2, fill: false, tension: 0.2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#9ca3af', callback: v => fmtGex(v) }, grid: { color: 'rgba(255,255,255,0.06)' } },
+        },
+        plugins: { legend: { display: true, labels: { color: '#9ca3af', boxWidth: 12, font: { size: 10 } } } },
+      },
+    });
+    content.classList.remove('d-none');
+  } catch (_) {
+    loading.classList.add('d-none');
+    empty.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

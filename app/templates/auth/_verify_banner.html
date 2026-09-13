@@ -1,0 +1,15 @@
+{# Dismissible email-verification reminder. Shown on /home and /dashboard while
+   the logged-in user's email is unverified — a prompt, not a gate (Module 01).
+   Dismissing hides it for the current page load; it returns until verified. #}
+{% if email_unverified %}
+<div class="alert alert-warning alert-dismissible fade show d-flex flex-wrap align-items-center gap-2" role="alert">
+  <span class="me-auto">
+    <strong>Verify your email.</strong>
+    We sent a verification link to your inbox — please confirm your address.
+  </span>
+  <form action="{{ url_for('auth.resend_verification') }}" method="post" class="d-inline">
+    <button type="submit" class="btn btn-sm btn-outline-dark">Resend verification email</button>
+  </form>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}

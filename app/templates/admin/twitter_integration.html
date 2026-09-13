@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Twitter Integration Test{% endblock %}
+
+{% block content %}
+{% set active_section = 'twitter_test' %}
+{% include 'admin/_sidenav.html' %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">Twitter Integration Test</h2>
+</div>
+
+{% if stuck_tweet_id %}
+<div class="alert alert-danger border border-danger-subtle border-2 d-flex align-items-start gap-3 mb-4" role="alert">
+  <span style="font-size:1.5rem">⚠️</span>
+  <div>
+    <strong class="d-block fs-6">Test tweet posted but auto-delete failed — manual cleanup required</strong>
+    A test tweet was posted successfully but could not be automatically deleted.
+    The tweet is <strong>currently live</strong> on the Twitter account.
+    <br>
+    Tweet ID: <code class="user-select-all">{{ stuck_tweet_id }}</code>
+    <br>
+    <span class="small text-muted">Delete it manually at
+      <a href="https://twitter.com/i/web/status/{{ stuck_tweet_id }}" target="_blank" rel="noopener">
+        twitter.com/i/web/status/{{ stuck_tweet_id }}
+      </a>
+    </span>
+  </div>
+</div>
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    {% if category != 'stuck_tweet' %}
+    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'danger' else 'info' }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+  {% endfor %}
+{% endwith %}
+
+<div class="row g-4 mb-4">
+  {# ── Credentials check ── #}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Credentials Check</div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">
+          Calls <code>GET /2/users/me</code> with the configured OAuth 1.0a credentials.
+          No tweet is posted. Confirms the API key/secret/access token pair is valid and
+          resolves the authenticated account handle.
+        </p>
+        <form method="post" action="{{ url_for('admin_panel.admin_twitter_test_credentials') }}"
+              onsubmit="return confirm('Run credentials check now?')">
+          <button class="btn btn-primary btn-sm" type="submit">Run Credentials Check</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ── Full test post ── #}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Full Test Post</div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">
+          Posts a clearly-marked test tweet with a placeholder chart image attached,
+          then immediately deletes it. Verifies the full posting pipeline including media upload.
+          Post and delete outcomes are logged separately.
+        </p>
+        <form method="post" action="{{ url_for('admin_panel.admin_twitter_test_post') }}"
+              onsubmit="return confirm('This will post and then delete a test tweet on the live Twitter account. Continue?')">
+          <button class="btn btn-warning btn-sm" type="submit">Run Full Test Post</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Credentials check history ── #}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Credentials Check History</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Run At</th>
+          <th>Status</th>
+          <th>Detail</th>
+          <th>Run By</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in cred_logs %}
+        <tr>
+          <td class="small">
+            {% if log.run_at %}{{ log.run_at.strftime('%Y-%m-%d %H:%M:%S CT') }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if log.status == 'success' %}
+              <span class="badge text-bg-success">success</span>
+            {% else %}
+              <span class="badge text-bg-danger">{{ log.status }}</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ log.get('detail', '') }}</td>
+          <td class="small text-muted">{{ log.get('run_by', '') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">No credential checks logged yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Test post history ── #}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Test Post History</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Run At</th>
+          <th>Status</th>
+          <th>Detail</th>
+          <th>Run By</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in post_logs %}
+        <tr {% if log.status == 'post_ok_delete_failed' %}class="table-danger"{% endif %}>
+          <td class="small">
+            {% if log.run_at %}{{ log.run_at.strftime('%Y-%m-%d %H:%M:%S CT') }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if log.status == 'success' %}
+              <span class="badge text-bg-success">success</span>
+            {% elif log.status == 'post_ok_delete_failed' %}
+              <span class="badge text-bg-warning text-dark">post ok / delete failed</span>
+            {% else %}
+              <span class="badge text-bg-danger">{{ log.status }}</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">
+            {{ log.get('detail', '') }}
+            {% if log.status == 'post_ok_delete_failed' and log.get('tweet_id') %}
+              — tweet ID: <code>{{ log.tweet_id }}</code>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ log.get('run_by', '') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">No test posts logged yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'admin/_sidenav_end.html' %}
+{% endblock %}

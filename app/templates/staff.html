@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Staff Panel — GEX Intelligence{% endblock %}
+
+{% block content %}
+<h2 class="fw-bold mb-4">Staff Panel</h2>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">User Lookup</h6>
+        <p class="card-text small">View account info and subscription status for support requests.</p>
+        <a href="{{ url_for('admin_panel.staff_users') }}" class="btn btn-sm btn-primary">View Users</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Pipeline Health</h6>
+        <p class="card-text small">View GEX collection job logs and data freshness.</p>
+        <a href="{{ url_for('admin_panel.admin_pipeline') }}" class="btn btn-sm btn-primary">View Pipeline</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">GEX Data</h6>
+        <p class="card-text small">Full symbol access via the dashboard for troubleshooting.</p>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-sm btn-outline-secondary">Open Dashboard</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mt-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">Social Post Studio</h6>
+        <p class="card-text small">Generate, review, and publish Pre-Market, EOD, and EOW GEX posts.</p>
+        <a href="{{ url_for('social.studio') }}" class="btn btn-sm btn-primary">Open Studio</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mt-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title text-muted">API Keys</h6>
+        <p class="card-text small">Read-only view of MCP API keys across every account.</p>
+        <a href="{{ url_for('admin_panel.staff_api_keys') }}" class="btn btn-sm btn-primary">View Keys</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

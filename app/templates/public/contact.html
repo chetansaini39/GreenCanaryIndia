@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact &amp; feedback — RetailGex</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}" />
+</head>
+<body>
+
+{% include 'public/_marketing_nav.html' %}
+
+<div class="container">
+  <div class="page-head">
+    <p class="eyebrow">We're listening</p>
+    <h1>Contact &amp; feedback</h1>
+    <p>Questions, bug reports, or ideas — we read every message.</p>
+  </div>
+
+  <div class="form-wrap">
+    {# ── Form column ── #}
+    <div>
+      <div id="contact-success" class="alert alert-success hidden" role="alert">
+        Message sent — we'll get back to you within 1–2 business days.
+      </div>
+
+      <form id="contact-form" novalidate>
+        <div id="contact-error" class="alert alert-error hidden" role="alert"></div>
+
+        {# 1. Message type selector — required #}
+        <div class="field">
+          <label>What's this about?</label>
+          <input type="hidden" name="type" id="contact-type" value="" />
+          <div class="pills" role="group" aria-label="Message type">
+            {% set types = [
+              ('bug', 'Bug report'),
+              ('feature', 'Feature idea'),
+              ('data', 'Data question'),
+              ('general', 'General'),
+            ] %}
+            {% for value, label in types %}
+            <button type="button" class="pill" data-type="{{ value }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# 2. Name #}
+        <div class="field">
+          <label for="contact-name">Name</label>
+          <input class="input" type="text" id="contact-name" name="name" required />
+        </div>
+
+        {# 3. Email — pre-filled for logged-in users #}
+        <div class="field">
+          <label for="contact-email">Email</label>
+          <input class="input" type="email" id="contact-email" name="email"
+                 value="{{ prefill_email }}" required />
+        </div>
+
+        {# 4. Message #}
+        <div class="field">
+          <label for="contact-message">Message</label>
+          <textarea class="input" id="contact-message" name="message" rows="6"
+                    minlength="20" required></textarea>
+          <div class="help">
+            Describe what you're seeing, what you expected, or what you'd like to see.
+            For bugs: symbol, date, and expected vs. actual behavior is super helpful.
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-accent" id="contact-submit">Send message</button>
+      </form>
+    </div>
+
+    {# ── Sidebar ── #}
+    <aside class="side-card">
+      <span class="side-badge">Replies in 1–2 business days</span>
+      <h4>What we help with</h4>
+      <ul>
+        <li>Data questions — how a number is computed or sourced</li>
+        <li>Billing — subscriptions, upgrades, and receipts</li>
+        <li>Bugs — anything that looks wrong or broken</li>
+      </ul>
+      <hr class="side-divider" />
+      <h4>Quick resources</h4>
+      <ul>
+        <li><a href="{{ url_for('main.index') }}#features">What is GEX?</a></li>
+        <li><a href="{{ url_for('main.index') }}#pricing">Free vs Pro</a></li>
+      </ul>
+    </aside>
+  </div>
+</div>
+
+{% include 'public/_marketing_footer.html' %}
+
+<script>
+  (function () {
+    const form = document.getElementById('contact-form');
+    const typeInput = document.getElementById('contact-type');
+    const pills = document.querySelectorAll('.pill');
+    const errorBox = document.getElementById('contact-error');
+    const successBox = document.getElementById('contact-success');
+    const submitBtn = document.getElementById('contact-submit');
+
+    pills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        pills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        typeInput.value = pill.dataset.type;
+      });
+    });
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove('hidden');
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      errorBox.classList.add('hidden');
+
+      if (!typeInput.value) { showError('Please choose a message type.'); return; }
+
+      const payload = {
+        type: typeInput.value,
+        name: document.getElementById('contact-name').value.trim(),
+        email: document.getElementById('contact-email').value.trim(),
+        message: document.getElementById('contact-message').value.trim(),
+      };
+
+      submitBtn.disabled = true;
+      fetch('{{ url_for("public.contact_submit") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
+        .then(({ ok, body }) => {
+          if (ok && body.ok) {
+            form.classList.add('hidden');
+            successBox.classList.remove('hidden');
+          } else {
+            showError(body.error || 'Something went wrong — please try again.');
+            submitBtn.disabled = false;
+          }
+        })
+        .catch(() => {
+          showError('Network error — please try again.');
+          submitBtn.disabled = false;
+        });
+    });
+  })();
+</script>
+</body>
+</html>

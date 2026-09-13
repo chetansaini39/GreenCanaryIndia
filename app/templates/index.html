@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RetailGex — Dealer Gamma Exposure Data for Traders</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/marketing.css') }}" />
+</head>
+<body>
+
+{% include 'public/_marketing_nav.html' %}
+
+{# ── Hero ── #}
+<header class="hero">
+  <div class="container">
+    <span class="badge-pill">◈ Options market structure analytics</span>
+    <h1>See where the market is<br /><span class="hl">positioned</span> before the move</h1>
+    <p class="sub">
+      RetailGex surfaces dealer gamma exposure, call/put walls, and weekly OPEX
+      levels across 20+ symbols — updated every 15 minutes during market hours.
+    </p>
+    <div class="hero-cta">
+      <a href="{{ url_for('auth.register') }}" class="btn btn-light">Start free — no card needed</a>
+      <a href="{{ url_for('main.this_week') }}" class="btn btn-outline">View this week's data</a>
+    </div>
+  </div>
+</header>
+
+{# ── Ticker (live spot + intraday change from /api/prices) ── #}
+<section class="ticker">
+  <div class="container ticker-inner">
+    <div id="ticker-row" style="display:flex;flex-wrap:wrap;gap:2.25rem;align-items:center;">
+      <span class="ticker-status">Loading prices…</span>
+    </div>
+    <span id="ticker-status" class="ticker-status"></span>
+  </div>
+</section>
+
+{# ── Features ── #}
+<section class="section" id="features">
+  <div class="container">
+    <div class="sec-head">
+      <p class="eyebrow">What you get</p>
+      <h2>Know what dealers are doing — not just price</h2>
+      <p>
+        When dealers hedge options, they buy and sell the underlying. GEX tells
+        you where that hedging pressure is concentrated — and whether it's working
+        to stabilize or amplify moves.
+      </p>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="icon-sq">▦</div>
+        <h3>GEX by strike</h3>
+        <p>See call/put walls and gamma flip levels across every expiry, updated every 15 minutes during market hours.</p>
+      </div>
+      <div class="card">
+        <div class="icon-sq">📈</div>
+        <h3>Weekly evolution</h3>
+        <p>Track how the GEX picture for each Friday expiry builds from Monday through expiry — see expectations vs. reality.</p>
+      </div>
+      <div class="card">
+        <div class="icon-sq">▤</div>
+        <h3>12-week forward view</h3>
+        <p>Understand dealer positioning across upcoming expiries, not just the nearest week. Free for all users.</p>
+      </div>
+      <div class="card">
+        <div class="icon-sq">🔁</div>
+        <h3>Monthly OPEX cycles</h3>
+        <p>Follow the 3rd-Friday OPEX cycle across 3 upcoming months, with twice-weekly captures for every symbol.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── Pricing ── #}
+<section class="section pricing-wrap" id="pricing">
+  <div class="container">
+    <div class="sec-head">
+      <p class="eyebrow">Pricing</p>
+      <h2>Simple tiers, no usage caps</h2>
+    </div>
+    <div class="price-grid">
+      {# Free #}
+      <div class="price-card">
+        <div class="price-tier">Free</div>
+        <div class="price-amt"><span class="num">$0</span><span class="per">/ month</span></div>
+        <p class="price-desc">For individual traders getting started with GEX.</p>
+        <ul class="price-feats">
+          <li><span class="ck">✓</span> SPY, QQQ, TSLA, NVDA</li>
+          <li><span class="ck">✓</span> 4-week weekly toggle</li>
+          <li><span class="ck">✓</span> 12-week GEX trend chart</li>
+          <li><span class="ck">✓</span> Intraday 0DTE (index only)</li>
+        </ul>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-outline">Get started free</a>
+      </div>
+      {# Pro #}
+      <div class="price-card pro">
+        <span class="popular">Most popular</span>
+        <div class="price-tier">Pro</div>
+        <div class="price-amt"><span class="num" id="pro-price">{{ pro_price }}</span><span class="per">/ month</span></div>
+        <p class="price-desc">Full symbol list, historical data, and advanced views.</p>
+        <ul class="price-feats">
+          <li><span class="ck">✓</span> Mag7 + SPX + all indices</li>
+          <li><span class="ck">✓</span> Full historical lookback</li>
+          <li><span class="ck">✓</span> Parallel coordinates view</li>
+          <li><span class="ck">✓</span> GEX Next 3 Trading Days</li>
+          <li><span class="ck">✓</span> 12-week comparison charts</li>
+        </ul>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-accent">Start Pro trial</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── Bottom CTA ── #}
+<section class="section cta">
+  <div class="container">
+    <h2>Today's GEX — no account needed</h2>
+    <p>See the current gamma exposure snapshot for SPY and QQQ right now, then decide if you want more.</p>
+    <a href="{{ url_for('public.today') }}" class="btn btn-outline">View today's data</a>
+  </div>
+</section>
+
+{% include 'public/_marketing_footer.html' %}
+
+<script>
+  // Populate the ticker strip from the live /api/prices endpoint — never hardcoded.
+  (function () {
+    const row = document.getElementById('ticker-row');
+    const status = document.getElementById('ticker-status');
+    const fmtPx = (v) => (v === null || v === undefined)
+      ? '—'
+      : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtChg = (v) => {
+      if (v === null || v === undefined) return { text: '', cls: 'flat' };
+      const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : 'flat');
+      const sign = v > 0 ? '+' : '';
+      return { text: sign + v.toFixed(1) + '%', cls: cls };
+    };
+
+    fetch('{{ url_for("api.prices") }}')
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((data) => {
+        row.innerHTML = '';
+        (data.prices || []).forEach((p) => {
+          const chg = fmtChg(p.change_pct);
+          const el = document.createElement('div');
+          el.className = 'tk';
+          el.innerHTML = '<span class="sym">' + p.symbol + '</span>' +
+                         '<span class="px">' + fmtPx(p.spot_price) + '</span>' +
+                         (chg.text ? '<span class="chg ' + chg.cls + '">' + chg.text + '</span>' : '');
+          row.appendChild(el);
+        });
+        if (!data.prices || !data.prices.length) {
+          row.innerHTML = '<span class="ticker-status">Prices unavailable</span>';
+        }
+        if (data.market_open) {
+          status.textContent = '● Live';
+        } else if (data.last_updated) {
+          const d = new Date(data.last_updated);
+          status.textContent = 'Market closed · ' + d.toLocaleString();
+        } else {
+          status.textContent = 'Market closed';
+        }
+      })
+      .catch(() => { row.innerHTML = '<span class="ticker-status">Prices unavailable</span>'; });
+  })();
+</script>
+</body>
+</html>
