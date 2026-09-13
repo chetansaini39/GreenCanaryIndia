@@ -401,7 +401,7 @@ def trigger_data_refresh(symbol: str, date: str | None = None) -> dict:
     """Request a manual EOD data pull for the given symbol. Admin key only.
 
     This writes a refresh-request flag for the scheduler process to pick up —
-    it does not touch the Schwab client from the MCP process, keeping Schwab
+    it does not touch the Zerodha client from the MCP process, keeping broker
     access isolated to the scheduler (confirmed open item, Module 11).
     Rate-limited to 5 calls/hour per key regardless of tier.
     """

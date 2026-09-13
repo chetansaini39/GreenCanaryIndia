@@ -37,18 +37,9 @@ FREE_STOCK_TYPES  = {"weekly", "intraday", "0dte"}
 ALL_TYPES         = {"0dte", "weekly", "monthly", "intraday"}
 
 # Hardcoded fallback catalog — used when symbols_config collection is empty
+# US symbols were removed with the Schwab/CBOE/yfinance pipeline in this
+# India-only fork. Keep in sync with scripts/seed_symbols.py DEFAULT_SYMBOLS.
 _DEFAULT_CATALOG = [
-    {"symbol": "SPY",   "tier": "free", "asset_type": "index"},
-    {"symbol": "QQQ",   "tier": "free", "asset_type": "index"},
-    {"symbol": "TSLA",  "tier": "free", "asset_type": "stock"},
-    {"symbol": "NVDA",  "tier": "free", "asset_type": "stock"},
-    {"symbol": "SPX",   "tier": "paid", "asset_type": "index"},
-    {"symbol": "NDX",   "tier": "paid", "asset_type": "index"},
-    {"symbol": "AAPL",  "tier": "paid", "asset_type": "stock"},
-    {"symbol": "MSFT",  "tier": "paid", "asset_type": "stock"},
-    {"symbol": "AMZN",  "tier": "paid", "asset_type": "stock"},
-    {"symbol": "META",  "tier": "paid", "asset_type": "stock"},
-    {"symbol": "GOOGL", "tier": "paid", "asset_type": "stock"},
     symbols_config.NIFTY_CONFIG,
 ]
 
@@ -774,7 +765,7 @@ def gex_eod():
 
 @api_bp.route("/ohlcv")
 def ohlcv():
-    """Last N daily OHLCV bars for the selected symbol (yfinance, dashboard card)."""
+    """Last N daily OHLCV bars for the selected symbol (Zerodha, dashboard card)."""
     if err := _require_auth():
         return err
 
@@ -800,7 +791,7 @@ def ohlcv():
         "symbol": symbol,
         "days": num_days,
         "bars": bars,
-        "source": "zerodha" if symbol_doc.get("provider") == "zerodha" else "yfinance",
+        "source": "zerodha",
         **_optional_market_metadata(symbol),
         "message": None if bars else "price history not available for this symbol",
     })

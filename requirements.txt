@@ -24,8 +24,6 @@ apscheduler>=3.10
 tweepy>=4.14
 
 # Data sources
-schwab_py==1.5.0
-yfinance==0.2.61
 kiteconnect==5.2.1
 
 # Frontend/data utilities

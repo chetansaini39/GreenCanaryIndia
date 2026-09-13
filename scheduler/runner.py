@@ -5,22 +5,18 @@ Run as a standalone process, completely separate from the Flask web app:
     python -m scheduler.runner
 
 ⚠  Single-instance constraint (from spec):
-   Only ONE instance of this process may run at a time.  Multiple instances
-   touching the same Schwab token file will corrupt it and cause duplicate
-   writes.  A PID lock file (scheduler.pid) is used to enforce this.
+   Only ONE instance of this process may run at a time.  A PID lock file
+   (scheduler.pid) is used to enforce this.
 
-Scheduling table (all times CT / America/Chicago):
+The US-market GEX collection jobs (intraday 0DTE, EOD, monthly OPEX — Schwab/
+CBOE/yfinance-backed) were removed from this fork. Zerodha/NIFTY jobs are
+scheduled separately (IST) via _sync_zerodha_jobs, below.
+
+Scheduling table (all times CT / America/Chicago unless noted):
 
   Job                              Trigger                      Notes
   ─────────────────────────────    ─────────────────────────    ──────────────────────────
-  intraday_0dte_5min               Cron, clock-aligned          Fires at multiples of
-                                    minute='*/N' (default N=15)  platform_settings.gex_0dte_
-                                                                  interval_minutes; guard:
-                                                                  8:45-14:55 CT + trading day;
-                                                                  stocks Friday only
-  eod_rolling_5d_weekly            Cron 14:50                   Rolling 21d + weekly
-  monthly_opex_3rd_friday          Cron Friday 15:05            3rd Friday only
-  social_eod                       Cron 15:15                   Review-only SPX EOD draft
+  social_eod                       Cron 15:15                   Review-only EOD draft
 """
 import atexit
 import logging
@@ -94,56 +90,6 @@ SOCIAL_PREMARKET_HOUR,   SOCIAL_PREMARKET_MINUTE   = 7,  45
 
 SOCIAL_EOD_HOUR,         SOCIAL_EOD_MINUTE         = 15, 15
 SOCIAL_EOW_HOUR,         SOCIAL_EOW_MINUTE         = 15, 15
-
-
-def _get_0dte_interval_minutes() -> int:
-    """Read the admin-configurable intraday interval from platform_settings.
-
-    Falls back to the 15-min default if Mongo is unreachable at startup —
-    the scheduler should still come up rather than crash on a transient
-    DB hiccup.
-    """
-    try:
-        from app.models import platform_settings
-        return platform_settings.get_0dte_interval_minutes(_settings_db())
-    except Exception as exc:
-        log.warning("Could not read gex_0dte_interval_minutes, defaulting to 15: %s", exc)
-        return 15
-
-
-def _reschedule_intraday_job(sched: BlockingScheduler) -> None:
-    """Check platform_settings for an updated 0DTE interval and, if it has
-    changed since this job was registered, remove and re-add it with a
-    new clock-aligned CronTrigger.
-    """
-    from scheduler.jobs.gex_collection import run_0dte_intraday
-    from scheduler.job_types import INTRADAY_0DTE_5MIN, job_label
-
-    job = sched.get_job(INTRADAY_0DTE_5MIN)
-    if job is None:
-        return
-
-    current_minutes = _get_0dte_interval_minutes()
-    current_expr = f"*/{current_minutes}"
-    if getattr(job.trigger, "fields", None):
-        minute_field = next((f for f in job.trigger.fields if f.name == "minute"), None)
-        if minute_field is not None and str(minute_field.expressions[0]) == current_expr:
-            return
-
-    sched.remove_job(INTRADAY_0DTE_5MIN)
-    sched.add_job(
-        run_0dte_intraday,
-        trigger=CronTrigger(minute=current_expr, timezone=_TIMEZONE),
-        id=INTRADAY_0DTE_5MIN,
-        name=job_label(INTRADAY_0DTE_5MIN),
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=60,
-    )
-    log.info(
-        "Intraday 0DTE interval changed — rescheduled to minute='%s' (every %s min).",
-        current_expr, current_minutes,
-    )
 
 
 def _settings_db():
@@ -263,77 +209,14 @@ def _sync_zerodha_jobs(sched: BlockingScheduler) -> None:
 
 
 def build_scheduler() -> BlockingScheduler:
-    from scheduler.jobs.gex_collection import (
-        run_0dte_intraday,
-        run_eod,
-        run_monthly_opex_check,
-    )
     from scheduler.jobs.twitter_post import run_twitter_post
     from scheduler.jobs.social_post import (
         run_premarket_post,
         run_eod_post,
         run_eow_post,
     )
-    from scheduler.job_types import (
-        EOD_ROLLING_5D_WEEKLY,
-        INTRADAY_0DTE_5MIN,
-        MONTHLY_OPEX_3RD_FRIDAY,
-        job_label,
-    )
 
     sched = BlockingScheduler(timezone=_TIMEZONE)
-
-    interval_minutes = _get_0dte_interval_minutes()
-    sched.add_job(
-        run_0dte_intraday,
-        trigger=CronTrigger(minute=f"*/{interval_minutes}", timezone=_TIMEZONE),
-        id=INTRADAY_0DTE_5MIN,
-        name=job_label(INTRADAY_0DTE_5MIN),
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=60,
-    )
-
-    # EOD runs twice per trading day (Module 02): a 9:00 AM CT capture of the
-    # morning state and the primary 2:50 PM CT capture. Both call run_eod —
-    # identical scope and idempotent upsert write logic, same trade_date — so
-    # the 2:50 PM run simply refreshes each tracked expiry's document written
-    # in the morning. Distinct APScheduler ids (the second suffixed "_am");
-    # both log to pipeline_health under the same job_name.
-    sched.add_job(
-        run_eod,
-        trigger=CronTrigger(hour=9, minute=0, timezone=_TIMEZONE),
-        id=f"{EOD_ROLLING_5D_WEEKLY}_am",
-        name=f"{job_label(EOD_ROLLING_5D_WEEKLY)} (9:00 AM)",
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=300,
-    )
-
-    sched.add_job(
-        run_eod,
-        trigger=CronTrigger(hour=14, minute=50, timezone=_TIMEZONE),
-        id=EOD_ROLLING_5D_WEEKLY,
-        name=job_label(EOD_ROLLING_5D_WEEKLY),
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=300,
-    )
-
-    sched.add_job(
-        run_monthly_opex_check,
-        trigger=CronTrigger(
-            day_of_week="mon,fri",
-            hour=15,
-            minute=5,
-            timezone=_TIMEZONE,
-        ),
-        id=MONTHLY_OPEX_3RD_FRIDAY,
-        name=job_label(MONTHLY_OPEX_3RD_FRIDAY),
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=300,
-    )
 
     for hour, minute in [(8, 0), (9, 30), (15, 30)]:
         sched.add_job(
@@ -426,19 +309,6 @@ if __name__ == "__main__":
         misfire_grace_time=60,
     )
 
-    # Watches platform_settings.gex_0dte_interval_minutes and reschedules the
-    # intraday job (remove + re-add with a new CronTrigger) if an admin
-    # changes it — picked up without a scheduler restart.
-    scheduler.add_job(
-        lambda: _reschedule_intraday_job(scheduler),
-        trigger=IntervalTrigger(minutes=2, timezone=_TIMEZONE),
-        id="intraday_interval_watcher",
-        name="Intraday 0DTE Interval Watcher",
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=60,
-    )
-
     scheduler.add_job(
         lambda: _sync_zerodha_jobs(scheduler),
         trigger=IntervalTrigger(minutes=2, timezone=_TIMEZONE),
@@ -450,8 +320,8 @@ if __name__ == "__main__":
     )
 
     # Module 11: picks up manual refresh requests queued by the MCP server's
-    # trigger_data_refresh tool. Kept here (not in the MCP process) so Schwab
-    # access stays isolated to this single scheduler process.
+    # trigger_data_refresh tool. Kept here (not in the MCP process) so Zerodha
+    # token access stays isolated to this single scheduler process.
     from scheduler.jobs.data_refresh_requests import run_pending_data_refresh_requests
     scheduler.add_job(
         run_pending_data_refresh_requests,

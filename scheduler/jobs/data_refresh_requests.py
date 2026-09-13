@@ -3,7 +3,7 @@ requests queued by the MCP server's trigger_data_refresh tool (Module 11)
 and runs them through the same EOD job the admin panel's manual "rerun"
 button uses.
 
-Kept out of the MCP server process on purpose — Schwab/token access stays
+Kept out of the MCP server process on purpose — Zerodha token access stays
 isolated to this scheduler process (confirmed open item, Module 11).
 """
 import logging

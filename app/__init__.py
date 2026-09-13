@@ -85,7 +85,7 @@ def create_app(config_name=None):
             from .models import ensure_all_indexes
             ensure_all_indexes(mongo.db)
 
-    # Heavy deps (numpy/plotly/yfinance) must load once on the main thread before
+    # Heavy deps (numpy/plotly) must load once on the main thread before
     # parallel API handlers run — see app/bootstrap.py.
     if not app.config.get("TESTING"):
         from .bootstrap import eager_import_data_stack

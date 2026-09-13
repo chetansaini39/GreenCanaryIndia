@@ -2,8 +2,13 @@
 Canonical GEX pipeline job identifiers and metadata.
 
 Use these IDs everywhere new code writes job_name to pipeline_health or
-registers APScheduler jobs. Legacy aliases remain accepted for reroute URLs
-and for displaying older log entries.
+registers APScheduler jobs.
+
+INTRADAY_0DTE_5MIN / EOD_ROLLING_5D_WEEKLY / MONTHLY_OPEX_3RD_FRIDAY were the
+US-market (Schwab/CBOE/yfinance) job ids, removed from JOB_TYPES in this
+fork. The constants are kept only so job_label()/resolve_job_id() can still
+render pre-existing pipeline_health log entries that used them; they are no
+longer runnable via rerun_job().
 """
 from dataclasses import dataclass
 
@@ -28,33 +33,6 @@ class JobType:
 
 
 JOB_TYPES: tuple[JobType, ...] = (
-    JobType(
-        id=INTRADAY_0DTE_5MIN,
-        label="Intraday 0DTE (clock-aligned, default 15 min)",
-        schedule="Clock-aligned every N min (admin-configurable, default 15), 8:45 AM – 2:55 PM CT",
-        writes="Intraday 0DTE snapshots (<code>gex_intraday</code>, type <code>0dte</code>)",
-        symbols="Index symbols daily; stocks on Fridays only",
-        aliases=("0dte_intraday",),
-    ),
-    JobType(
-        id=EOD_ROLLING_5D_WEEKLY,
-        label="EOD rolling 21d + weekly",
-        schedule="2:50 PM CT on trading days",
-        writes=(
-            "End-of-day rolling 21-day chart data (<code>gex_rolling_21d</code>). "
-            "Also writes a weekly snapshot (<code>gex_weekly</code>) on the last trading day of the week."
-        ),
-        symbols="All active symbols",
-        aliases=("eod", "eod_gex"),
-    ),
-    JobType(
-        id=MONTHLY_OPEX_3RD_FRIDAY,
-        label="Monthly OPEX (Mon + Fri EOD)",
-        schedule="3:05 PM CT every Monday and Friday",
-        writes="Monthly OPEX snapshot (<code>gex_monthly_opex</code>)",
-        symbols="All active symbols (index group + Mag7 stocks)",
-        aliases=("monthly_opex",),
-    ),
     JobType(
         id=ZERODHA_NIFTY_INTRADAY,
         label="NIFTY intraday 0DTE",

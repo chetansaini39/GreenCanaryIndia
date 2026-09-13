@@ -28,20 +28,10 @@ load_dotenv(ROOT / ".env")
 from app.config import BaseConfig  # noqa: E402
 from app.models import symbols_config  # noqa: E402
 
-# Keep in sync with app/routes/api.py _DEFAULT_CATALOG
+# Keep in sync with app/routes/api.py _DEFAULT_CATALOG.
+# US symbols (SPY/QQQ/TSLA/NVDA/SPX/NDX/IWM/AAPL/MSFT/AMZN/META/GOOGL) were
+# removed with the Schwab/CBOE/yfinance pipeline in this India-only fork.
 DEFAULT_SYMBOLS = [
-    {"symbol": "SPY",   "tier": "free", "asset_type": "index", "weekly_expiry": False},
-    {"symbol": "QQQ",   "tier": "free", "asset_type": "index", "weekly_expiry": False},
-    {"symbol": "TSLA",  "tier": "free", "asset_type": "stock",  "weekly_expiry": True},
-    {"symbol": "NVDA",  "tier": "free", "asset_type": "stock",  "weekly_expiry": True},
-    {"symbol": "SPX",   "tier": "paid", "asset_type": "index", "weekly_expiry": False},
-    {"symbol": "NDX",   "tier": "paid", "asset_type": "index", "weekly_expiry": False},
-    {"symbol": "IWM",   "tier": "paid", "asset_type": "index", "weekly_expiry": False},
-    {"symbol": "AAPL",  "tier": "paid", "asset_type": "stock",  "weekly_expiry": True},
-    {"symbol": "MSFT",  "tier": "paid", "asset_type": "stock",  "weekly_expiry": True},
-    {"symbol": "AMZN",  "tier": "paid", "asset_type": "stock",  "weekly_expiry": True},
-    {"symbol": "META",  "tier": "paid", "asset_type": "stock",  "weekly_expiry": True},
-    {"symbol": "GOOGL", "tier": "paid", "asset_type": "stock",  "weekly_expiry": True},
     symbols_config.NIFTY_CONFIG,
 ]
 

@@ -1,8 +1,8 @@
 """One-time startup imports for the data/charting stack.
 
-Parallel dashboard requests (OHLCV via yfinance + EOD charts via Plotly)
-can otherwise first-import numpy from different threads and leave it
-partially initialized — Plotly then fails with:
+Parallel dashboard requests (OHLCV + EOD charts via Plotly) can otherwise
+first-import numpy from different threads and leave it partially
+initialized — Plotly then fails with:
   AttributeError: ... numpy ... has no attribute 'isscalar'
 """
 
@@ -15,5 +15,3 @@ def eager_import_data_stack() -> None:
 
     # Touch Plotly validators that rely on numpy before any worker thread runs.
     make_subplots(rows=1, cols=1)
-
-    import yfinance  # noqa: F401

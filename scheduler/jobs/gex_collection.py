@@ -1,14 +1,14 @@
 """
 GEX collection jobs — called by scheduler/runner.py on their respective triggers.
 
-Source priority per spec:
-  Index symbols:  Schwab → CBOE → yfinance
-  Stock symbols:  Schwab → yfinance  (CBOE does not cover stocks)
+Data source: Zerodha Kite Connect only (this fork covers Indian markets;
+the Schwab/CBOE/yfinance US-market pipeline was removed — see RetailGex for
+the original multi-provider version).
 
 Every job:
   1. Guards against non-trading days / outside trading window.
   2. Reads the active symbol list from symbols_config (DB-driven).
-  3. Fetches option chain with fallback.
+  3. Fetches the option chain from Zerodha.
   4. Computes GEX via gex_engine.
   5. Upserts result to the appropriate Mongo collection via db_writer.
   6. Logs outcome to pipeline_health (success / failed / skipped).
@@ -25,23 +25,10 @@ import db_writer
 from app.models import symbols_config, pipeline_health
 from app.models.db import market_db_for_symbol
 from app.utils.time import market_midnight, now_ct, mongo_client_kwargs
-from data_sources import schwab_client, cboe_client, yfinance_client, zerodha_client
+from data_sources import zerodha_client
 from data_sources.strike_filter import filter_chain
-from scheduler.market_utils import (
-    is_trading_day,
-    is_in_0dte_window,
-    is_friday,
-    next_n_trading_days,
-    next_n_upcoming_fridays,
-    next_m_upcoming_opex_cycles,
-    trade_date_ct,
-    week_of_monday,
-)
 
 from scheduler.job_types import (
-    EOD_ROLLING_5D_WEEKLY,
-    INTRADAY_0DTE_5MIN,
-    MONTHLY_OPEX_3RD_FRIDAY,
     ZERODHA_NIFTY_EOD,
     ZERODHA_NIFTY_INTRADAY,
     ZERODHA_NIFTY_MONTHLY,
@@ -135,7 +122,7 @@ def _get_db():
 
 
 # ---------------------------------------------------------------------------
-# Source-priority fetch with fallback
+# Chain fetch
 # ---------------------------------------------------------------------------
 
 def _fetch_chain(
@@ -147,57 +134,32 @@ def _fetch_chain(
     expiry_dates=None,
     max_expiries: int | None = None,
 ) -> tuple[dict, str]:
-    """Try data sources in priority order. Returns (chain_dict, source_name).
+    """Fetch an option chain via Zerodha (the only supported provider in this fork).
 
     chain_dict: {"options": [...], "spot_price": float} — options are filtered
     to the asset-type strike band before return.
-    Raises RuntimeError only after all sources are exhausted.
+    Raises RuntimeError if the provider is unsupported or Zerodha returns
+    nothing usable.
     """
-    provider = str((symbol_doc or {}).get("provider") or "schwab").lower()
-    if provider == "zerodha":
-        kwargs = {
-            "expiry_date": expiry_date,
-            "expiry_dates": expiry_dates,
-            "asset_type": asset_type,
-            "risk_free_rate": float((symbol_doc or {}).get("risk_free_rate", 0.055)),
-        }
-        if max_expiries is not None:
-            kwargs["max_expiries"] = max_expiries
-        result = filter_chain(zerodha_client.get_option_chain(symbol, **kwargs), asset_type)
-        if not result["options"]:
-            raise RuntimeError(f"Zerodha returned no usable options for {symbol}")
-        return result, "zerodha"
+    provider = str((symbol_doc or {}).get("provider") or "zerodha").lower()
+    if provider != "zerodha":
+        raise RuntimeError(
+            f"Unsupported data provider '{provider}' for {symbol} — "
+            "this fork only supports Zerodha."
+        )
 
-    sources: list[tuple[str, callable]] = [
-        ("schwab", lambda: schwab_client.get_option_chain(symbol, asset_type=asset_type)),
-    ]
-
-    if asset_type == "index":
-        # CBOE only covers index symbols
-        sources.append(("cboe", lambda: cboe_client.get_option_chain(symbol)))
-
-    sources.append(("yfinance", lambda: yfinance_client.get_option_chain(symbol)))
-
-    last_exc = None
-    for source_name, fetch_fn in sources:
-        try:
-            result = fetch_fn()
-            filtered = filter_chain(result, asset_type)
-            if not filtered["options"]:
-                raise ValueError(
-                    f"No options within strike band for {symbol} "
-                    f"(spot={filtered['spot_price']}, asset_type={asset_type})"
-                )
-            if source_name != "schwab":
-                log.info("[%s] served by fallback source: %s", symbol, source_name)
-            return filtered, source_name
-        except Exception as exc:
-            log.warning("[%s] %s failed: %s", symbol, source_name, exc)
-            last_exc = exc
-
-    raise RuntimeError(
-        f"All data sources exhausted for {symbol}: {last_exc}"
-    ) from last_exc
+    kwargs = {
+        "expiry_date": expiry_date,
+        "expiry_dates": expiry_dates,
+        "asset_type": asset_type,
+        "risk_free_rate": float((symbol_doc or {}).get("risk_free_rate", 0.055)),
+    }
+    if max_expiries is not None:
+        kwargs["max_expiries"] = max_expiries
+    result = filter_chain(zerodha_client.get_option_chain(symbol, **kwargs), asset_type)
+    if not result["options"]:
+        raise RuntimeError(f"Zerodha returned no usable options for {symbol}")
+    return result, "zerodha"
 
 
 # ---------------------------------------------------------------------------
@@ -232,13 +194,6 @@ def _get_symbols(db, tier: str | None = None) -> list[dict]:
     if tier:
         return symbols_config.find_by_tier(db, tier)
     return symbols_config.find_all_active(db)
-
-
-def _us_symbols(rows: list[dict]) -> list[dict]:
-    return [
-        row for row in rows
-        if str(row.get("provider") or "schwab").lower() != "zerodha"
-    ]
 
 
 def _market_metadata(chain: dict, symbol_doc: dict, expiry=None) -> dict:
@@ -284,222 +239,6 @@ def _nifty_symbol(db) -> dict:
     if str(symbol_doc.get("provider", "")).lower() != "zerodha":
         raise RuntimeError("NIFTY is not configured for the Zerodha provider")
     return symbol_doc
-
-
-# ---------------------------------------------------------------------------
-# Job: 0DTE intraday (every 5 min, 8:45 AM–2:55 PM CT)
-# ---------------------------------------------------------------------------
-
-def run_0dte_intraday() -> None:
-    """Collect 5-min 0DTE GEX snapshots for index symbols (daily) and stock
-    symbols (Fridays only, when weekly expiry = 0DTE).
-    """
-    job_name = INTRADAY_0DTE_5MIN
-
-    if not is_in_0dte_window():
-        # APScheduler fires on a fixed interval; guard handles off-hours ticks.
-        return
-
-    db = _get_db()
-    now = now_ct()
-    trade_date = trade_date_ct(now.date())
-
-    all_symbols = _us_symbols(_get_symbols(db))
-    target_symbols = [
-        s for s in all_symbols
-        if s["asset_type"] == "index"
-        or (is_friday(now.date()) and s["asset_type"] == "stock")
-    ]
-
-    if not target_symbols:
-        log.warning("[%s] No active symbols found in symbols_config.", job_name)
-        return
-
-    processed = 0
-    errors: list[str] = []
-
-    next_3_trading_days = next_n_trading_days(3, from_date=now.date())
-
-    for sym_doc in target_symbols:
-        symbol = sym_doc["symbol"]
-        asset_type = sym_doc["asset_type"]
-        try:
-            chain, source = _fetch_chain(symbol, asset_type)
-            result = gex_engine.compute(chain["options"], chain["spot_price"])
-
-            term_structure = None
-            if asset_type == "index":
-                term_structure = _build_term_structure(
-                    chain["options"], chain["spot_price"], next_3_trading_days
-                )
-
-            db_writer.write_intraday(
-                db,
-                symbol=symbol,
-                asset_type=asset_type,
-                timestamp=now,
-                trade_date=trade_date,
-                snapshot_type="0dte",
-                source=source,
-                spot_price=chain["spot_price"],
-                gex_result=result,
-                term_structure=term_structure,
-            )
-            processed += 1
-        except Exception as exc:
-            msg = f"{symbol}: {exc}"
-            log.error("[%s] %s", job_name, msg)
-            errors.append(msg)
-
-    status = "success" if not errors else ("failed" if processed == 0 else "success")
-    detail = "; ".join(errors) if errors else ""
-    _log_health(db, job_name, status, detail, processed)
-
-
-# ---------------------------------------------------------------------------
-# Job: EOD (2:50 PM CT daily)
-# ---------------------------------------------------------------------------
-
-def run_eod() -> None:
-    """End-of-day GEX collection:
-      - Save rolling 21-day EOD snapshot for all symbols (every trading day).
-      - Save weekly GEX for all symbols for each of the next N upcoming Friday
-        expiries in parallel (N = platform_settings.gex_weekly_forward_weeks).
-    """
-    job_name = EOD_ROLLING_5D_WEEKLY
-
-    db = _get_db()
-    now = now_ct()
-
-    if not is_trading_day(now.date()):
-        _log_health(db, job_name, "skipped", "holiday or non-trading day", 0)
-        return
-
-    trade_date = trade_date_ct(now.date())
-    all_symbols = _us_symbols(_get_symbols(db))
-    if not all_symbols:
-        log.warning("[%s] No active symbols found in symbols_config.", job_name)
-        _log_health(db, job_name, "skipped", "no active symbols in symbols_config", 0)
-        return
-
-    from app.models import platform_settings as ps
-    n_weeks = ps.get_weekly_forward_weeks(db)
-    upcoming_fridays = next_n_upcoming_fridays(n_weeks, from_date=now.date())
-
-    processed = 0
-    errors: list[str] = []
-
-    for sym_doc in all_symbols:
-        symbol = sym_doc["symbol"]
-        asset_type = sym_doc["asset_type"]
-        try:
-            chain, source = _fetch_chain(symbol, asset_type)
-            result = gex_engine.compute(chain["options"], chain["spot_price"])
-
-            # Rolling 21-day EOD — every symbol, every trading day
-            db_writer.write_rolling_21d(
-                db,
-                symbol=symbol,
-                asset_type=asset_type,
-                trade_date=trade_date,
-                source=source,
-                spot_price=chain["spot_price"],
-                gex_result=result,
-            )
-
-            # Weekly snapshot — one document per tracked expiry (N in parallel).
-            # GEX is computed PER expiry: slice the chain to each Friday's own
-            # contracts and compute on that slice. Computing once over the whole
-            # blended chain and reusing it makes every week identical.
-            for friday in upcoming_fridays:
-                expiry_opts = _slice_options_by_expiry(chain["options"], friday)
-                week_result = gex_engine.compute(expiry_opts, chain["spot_price"])
-                expiry_dt = trade_date_ct(friday)
-                monday = trade_date_ct(week_of_monday(friday))
-                db_writer.write_weekly(
-                    db,
-                    symbol=symbol,
-                    asset_type=asset_type,
-                    week_of=monday,
-                    expiry_date=expiry_dt,
-                    trade_date=trade_date,
-                    source=source,
-                    spot_price=chain["spot_price"],
-                    gex_result=week_result,
-                )
-
-            processed += 1
-        except Exception as exc:
-            msg = f"{symbol}: {exc}"
-            log.error("[%s] %s", job_name, msg)
-            errors.append(msg)
-
-    status = "success" if not errors else ("failed" if processed == 0 else "success")
-    _log_health(db, job_name, status, "; ".join(errors), processed)
-
-
-# ---------------------------------------------------------------------------
-# Job: Monthly OPEX — Monday + Friday EOD (~3:05 PM CT)
-# ---------------------------------------------------------------------------
-
-def run_monthly_opex_check() -> None:
-    """Save monthly OPEX snapshots twice per week (Monday and Friday EOD).
-
-    Writes one document per symbol per tracked OPEX cycle — M cycles in parallel
-    (M = platform_settings.gex_monthly_forward_cycles, default 3).  The window
-    is computed fresh each run as "the next M upcoming 3rd-Friday dates from today,"
-    so an expiry that passes simply falls out of the window on its own — no special
-    rollover branch needed.  Applies to all active symbols.
-    """
-    job_name = MONTHLY_OPEX_3RD_FRIDAY
-
-    db = _get_db()
-    now = now_ct()
-
-    if not is_trading_day(now.date()):
-        _log_health(db, job_name, "skipped", "holiday or non-trading day", 0)
-        return
-
-    trade_date = trade_date_ct(now.date())
-
-    from app.models import platform_settings as ps
-    m_cycles = ps.get_monthly_forward_cycles(db)
-    upcoming_cycles = next_m_upcoming_opex_cycles(m_cycles, from_date=now.date())
-
-    all_symbols = _us_symbols(_get_symbols(db))
-
-    processed = 0
-    errors: list[str] = []
-
-    for sym_doc in all_symbols:
-        symbol = sym_doc["symbol"]
-        asset_type = sym_doc["asset_type"]
-        try:
-            chain, source = _fetch_chain(symbol, asset_type)
-            # Same per-expiry rule as weekly: slice the chain to each OPEX
-            # expiry and compute on that slice, not the whole blended chain.
-            for expiry in upcoming_cycles:
-                expiry_opts = _slice_options_by_expiry(chain["options"], expiry)
-                cycle_result = gex_engine.compute(expiry_opts, chain["spot_price"])
-                expiry_dt = trade_date_ct(expiry)
-                db_writer.write_monthly_opex(
-                    db,
-                    symbol=symbol,
-                    asset_type=asset_type,
-                    expiry_date=expiry_dt,
-                    trade_date=trade_date,
-                    source=source,
-                    spot_price=chain["spot_price"],
-                    gex_result=cycle_result,
-                )
-            processed += 1
-        except Exception as exc:
-            msg = f"{symbol}: {exc}"
-            log.error("[%s] %s", job_name, msg)
-            errors.append(msg)
-
-    status = "success" if not errors else ("failed" if processed == 0 else "success")
-    _log_health(db, job_name, status, "; ".join(errors), processed)
 
 
 # ---------------------------------------------------------------------------

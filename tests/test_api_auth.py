@@ -215,14 +215,9 @@ def test_free_user_symbols_locks_paid_symbols(client):
     assert resp.status_code == 200
     body = resp.get_json()
     symbols = {s["symbol"]: s for s in body["symbols"]}
-    # Fallback catalog is used when DB returns empty; check a few entries
-    assert symbols["SPY"]["locked"] is False
-    assert symbols["QQQ"]["locked"] is False
-    assert symbols["TSLA"]["locked"] is False
-    assert symbols["NVDA"]["locked"] is False
-    # Paid symbols must be locked
-    for sym in ("SPX", "AAPL", "MSFT"):
-        assert symbols[sym]["locked"] is True, f"{sym} should be locked for free user"
+    # Fallback catalog is used when DB returns empty — in this fork that's
+    # NIFTY only, and it's paid-tier, so a free user must see it locked.
+    assert symbols["NIFTY"]["locked"] is True
 
 
 def test_paid_user_symbols_none_locked(client):

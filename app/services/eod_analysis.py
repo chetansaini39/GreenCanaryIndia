@@ -3,11 +3,8 @@ from __future__ import annotations
 
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-
-import yfinance as yf
 
 from app.models import gex_intraday, gex_rolling_21d, gex_weekly
 from app.charts.contracts import expiry_detail_for_snapshot
@@ -16,14 +13,6 @@ from app.services import eod_charts
 log = logging.getLogger(__name__)
 
 INDEX_SYMBOLS = {"SPY", "QQQ", "SPX", "NDX", "RUT", "VIX", "IWM"}
-
-_YF_SYMBOLS = {
-    "SPX": "^GSPC",
-    "NDX": "^NDX",
-    "RUT": "^RUT",
-    "VIX": "^VIX",
-}
-
 
 _CT = ZoneInfo(os.environ.get("TIMEZONE", "America/Chicago"))
 
@@ -62,50 +51,20 @@ def _asset_type(symbol: str) -> str:
     return "index" if symbol.upper() in INDEX_SYMBOLS else "stock"
 
 
-def _yf_symbol(symbol: str) -> str:
-    return _YF_SYMBOLS.get(symbol.upper(), symbol)
-
-
-def _fetch_stock_bar_inner(symbol: str, trade_date: date) -> dict | None:
-    yf_sym = _yf_symbol(symbol)
-    df = yf.Ticker(yf_sym).history(period="1mo", interval="1d")
-    if df is None or df.empty:
+def _fetch_stock_bar(symbol: str, trade_date: date, provider: str = "zerodha") -> dict | None:
+    """OHLCV for a single trading day via Zerodha (the only supported provider)."""
+    if provider != "zerodha":
+        log.debug("OHLCV skipped for %s: unsupported provider '%s'", symbol, provider)
         return None
-
-    target = trade_date.isoformat()
-    for ts, row in df.iterrows():
-        if ts.date().isoformat() == target:
-            return {
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "volume": int(row["Volume"]),
-            }
-    return None
-
-
-def _fetch_stock_bar(symbol: str, trade_date: date, provider: str = "schwab") -> dict | None:
-    """OHLCV for a single trading day via yfinance (2s timeout, non-blocking)."""
-    if provider == "zerodha":
-        try:
-            from data_sources.zerodha_client import get_historical_bars
-
-            start = datetime.combine(trade_date, datetime.min.time(), tzinfo=ZoneInfo("Asia/Kolkata"))
-            rows = get_historical_bars(symbol, start, start + timedelta(days=1), interval="day")
-            return rows[-1] if rows else None
-        except Exception as exc:
-            log.debug("Zerodha OHLCV skipped for %s: %s", symbol, exc)
-            return None
     try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            fut = pool.submit(_fetch_stock_bar_inner, symbol, trade_date)
-            return fut.result(timeout=2.0)
-    except FuturesTimeout:
-        log.debug("yfinance OHLCV timed out for %s", symbol)
+        from data_sources.zerodha_client import get_historical_bars
+
+        start = datetime.combine(trade_date, datetime.min.time(), tzinfo=ZoneInfo("Asia/Kolkata"))
+        rows = get_historical_bars(symbol, start, start + timedelta(days=1), interval="day")
+        return rows[-1] if rows else None
     except Exception as exc:
-        log.debug("yfinance OHLCV skipped for %s: %s", symbol, exc)
-    return None
+        log.debug("Zerodha OHLCV skipped for %s: %s", symbol, exc)
+        return None
 
 
 def _snapshot_has_charts(doc: dict | None) -> bool:
@@ -163,7 +122,7 @@ def _build_day_payload(
     trade_date: date,
     snap: dict | None = None,
     market_timezone: str = str(_CT),
-    provider: str = "schwab",
+    provider: str = "zerodha",
 ) -> dict | None:
     snap = snap or _resolve_eod_snapshot(db, symbol, trade_date, market_timezone)
     if not snap:
@@ -229,7 +188,7 @@ def _build_day_payload(
 
 def _build_stock_week_payload(
     db, symbol: str, week_ref_date: date,
-    market_timezone: str = str(_CT), provider: str = "schwab",
+    market_timezone: str = str(_CT), provider: str = "zerodha",
 ) -> dict | None:
     """Stocks use weekly snapshots keyed by week_of Monday (same as /api/gex?type=weekly)."""
     weekly = _find_weekly_for_date(db, symbol, week_ref_date, market_timezone)
@@ -251,7 +210,7 @@ def build_eod_analysis(
     num_days: int = 1,
     asset_type: str | None = None,
     market_timezone: str = str(_CT),
-    provider: str = "schwab",
+    provider: str = "zerodha",
 ) -> dict:
     """Return EOD GEX Analysis card data for up to num_days ending at end_date."""
     asset_type = asset_type or _asset_type(symbol)
