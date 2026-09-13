@@ -80,7 +80,7 @@ def main() -> int:
             return 1
 
     client = MongoClient(BaseConfig.MONGO_URI)
-    db_name = BaseConfig.MONGO_URI.rsplit("/", 1)[-1].split("?")[0] or "retailgex"
+    db_name = BaseConfig.MONGO_URI.rsplit("/", 1)[-1].split("?")[0] or "greencanaryindia"
     db = client[db_name]
 
     existing = users_model.find_by_email(db, email)

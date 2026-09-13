@@ -7,9 +7,9 @@ load_dotenv()
 
 class BaseConfig:
     SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
-    MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/retailgex")
+    MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/greencanaryindia")
     ZERODHA_MONGO_URI = os.environ.get(
-        "ZERODHA_MONGO_URI", "mongodb://localhost:27017/retailgex_zerodha"
+        "ZERODHA_MONGO_URI", "mongodb://localhost:27017/greencanaryindia_zerodha"
     )
     TIMEZONE = os.environ.get("TIMEZONE", "America/Chicago")
 
@@ -17,7 +17,7 @@ class BaseConfig:
     # SESSION_MONGODB (the MongoClient instance) is injected in create_app()
     # after mongo.init_app() runs, so it cannot live here as a class attribute.
     SESSION_TYPE = "mongodb"
-    SESSION_MONGODB_DB = "retailgex"
+    SESSION_MONGODB_DB = "greencanaryindia"
     SESSION_MONGODB_COLLECT = "flask_sessions"
     SESSION_PERMANENT = False
     SESSION_USE_SIGNER = True       # signs the session cookie to prevent tampering
@@ -67,11 +67,11 @@ class BaseConfig:
 
     # Transactional email (Module 01 — verification & password reset).
     # Uses SendGrid's Web API — see docs/spec/07-deployment-infra.md.
-    EMAIL_FROM = os.environ.get("EMAIL_FROM", "noreply@retailgex.csaini.org")
+    EMAIL_FROM = os.environ.get("EMAIL_FROM", "noreply@greencanaryindia.csaini.org")
     SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 
     # Inbox that receives contact-form notifications (Module 01 /contact backend).
-    ADMIN_CONTACT_EMAIL = os.environ.get("ADMIN_CONTACT_EMAIL", "hello@retailgex.csaini.org")
+    ADMIN_CONTACT_EMAIL = os.environ.get("ADMIN_CONTACT_EMAIL", "hello@greencanaryindia.csaini.org")
 
     # Stripe
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
@@ -81,7 +81,7 @@ class BaseConfig:
 
     # Public MCP server URL (Module 11) — shown to users on the "API key
     # created" page so they can copy it straight into their MCP client config.
-    MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", "https://retailgex.csaini.org/mcp")
+    MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", "https://greencanaryindia.csaini.org/mcp")
 
     # Pro tier display price for the homepage pricing card (Module 01 homepage).
     # Sourced here rather than hardcoded in the template so changing the price
@@ -99,8 +99,8 @@ class ProductionConfig(BaseConfig):
 
 class TestingConfig(BaseConfig):
     TESTING = True
-    MONGO_URI = "mongodb://localhost:27017/retailgex_test"
-    ZERODHA_MONGO_URI = "mongodb://localhost:27017/retailgex_zerodha_test"
+    MONGO_URI = "mongodb://localhost:27017/greencanaryindia_test"
+    ZERODHA_MONGO_URI = "mongodb://localhost:27017/greencanaryindia_zerodha_test"
     # Filesystem session avoids needing a live Mongo connection in unit tests
     SESSION_TYPE = "filesystem"
     SESSION_FILE_DIR = tempfile.mkdtemp()

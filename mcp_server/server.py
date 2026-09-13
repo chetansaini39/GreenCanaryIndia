@@ -1,4 +1,4 @@
-"""RetailGex MCP server — external agent access to GEX data (Module 11).
+"""GreenCanaryIndia MCP server — external agent access to GEX data (Module 11).
 
 Separate process from the Flask web app and the scheduler. Streamable HTTP
 transport on port 5010, mounted at /mcp.
@@ -27,7 +27,7 @@ log = logging.getLogger("mcp_server")
 
 CT = ZoneInfo(os.environ.get("TIMEZONE", "America/Chicago"))
 
-mcp = FastMCP("RetailGex")
+mcp = FastMCP("GreenCanaryIndia")
 
 
 def _db():
@@ -528,7 +528,7 @@ def main():
     ensure_all_indexes(db)
     ensure_auth_indexes(db)
 
-    log.info("Starting RetailGex MCP server on :5010/mcp")
+    log.info("Starting GreenCanaryIndia MCP server on :5010/mcp")
     mcp.run(transport="http", host="0.0.0.0", port=5010, path="/mcp")
 
 
